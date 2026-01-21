@@ -102,3 +102,120 @@
     background-color: theme('colors.gray.400');
   }
 }
+
+/* Print styles */
+@media print {
+  /* Hide non-printable elements */
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Show print-only elements */
+  .hidden.print\:block {
+    display: block !important;
+  }
+
+  .hidden.print\:table-cell {
+    display: table-cell !important;
+  }
+
+  /* Reset background and colors for print */
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 12pt !important;
+    line-height: 1.4 !important;
+  }
+
+  /* Hide sidebar and header */
+  aside,
+  header,
+  nav {
+    display: none !important;
+  }
+
+  /* Full width for main content */
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Reset card styles for print */
+  .card,
+  [class*='Card'] {
+    box-shadow: none !important;
+    border: 1px solid #333 !important;
+    break-inside: avoid !important;
+  }
+
+  /* Table styling for print */
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+
+  th,
+  td {
+    border: 1px solid #666 !important;
+    padding: 8px !important;
+  }
+
+  thead {
+    background: #f0f0f0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Prevent page breaks inside rows */
+  tr {
+    break-inside: avoid !important;
+  }
+
+  /* Badge print styles */
+  .badge,
+  [class*='Badge'] {
+    border: 1px solid #666 !important;
+    background: #f5f5f5 !important;
+    color: #333 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Trip sheet specific styles */
+  .trip-sheet-printable {
+    padding: 0 !important;
+  }
+
+  /* Ensure proper page margins */
+  @page {
+    margin: 1cm;
+    size: A4;
+  }
+
+  /* Force color printing for important elements */
+  .print\:bg-gray-100,
+  .print\:bg-gray-200 {
+    background-color: #f0f0f0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide toasts and modals */
+  [role='alert'],
+  [role='dialog'] {
+    display: none !important;
+  }
+
+  /* Links */
+  a {
+    text-decoration: none !important;
+    color: black !important;
+  }
+
+  /* Remove animations */
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

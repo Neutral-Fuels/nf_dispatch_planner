@@ -3,19 +3,23 @@ import {
   LayoutDashboard,
   Calendar,
   CalendarClock,
+  CalendarDays,
+  ClipboardList,
   Users,
   Truck,
   Building2,
   Settings,
   UserCog,
 } from 'lucide-react'
-import { cn } from '../../utils/formatters'
+import { cn } from '../../utils/cn'
 import { useAuthStore } from '../../store/authStore'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Daily Schedule', href: '/schedule', icon: Calendar },
   { name: 'Weekly Templates', href: '/templates', icon: CalendarClock },
+  { name: 'Driver Schedule', href: '/driver-schedule', icon: CalendarDays },
+  { name: 'Trip Sheet', href: '/driver-trip-sheet', icon: ClipboardList },
   { name: 'Drivers', href: '/drivers', icon: Users },
   { name: 'Tankers', href: '/tankers', icon: Truck },
   { name: 'Customers', href: '/customers', icon: Building2 },

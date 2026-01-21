@@ -11,6 +11,8 @@ import { Tankers } from './pages/Tankers'
 import { Customers } from './pages/Customers'
 import { DailySchedule } from './pages/DailySchedule'
 import { WeeklyTemplates } from './pages/WeeklyTemplates'
+import { DriverSchedule } from './pages/DriverSchedule'
+import { DriverTripSheet } from './pages/DriverTripSheet'
 import { Users } from './pages/Users'
 
 // Create a client
@@ -48,6 +50,8 @@ function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/schedule/:date?" element={<DailySchedule />} />
             <Route path="/templates" element={<WeeklyTemplates />} />
+            <Route path="/driver-schedule" element={<DriverSchedule />} />
+            <Route path="/driver-trip-sheet" element={<DriverTripSheet />} />
             <Route path="/drivers" element={<Drivers />} />
             <Route path="/tankers" element={<Tankers />} />
             <Route path="/customers" element={<Customers />} />
