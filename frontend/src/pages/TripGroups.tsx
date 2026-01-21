@@ -19,7 +19,7 @@ import {
   useAddTemplatesToGroup,
   useRemoveTemplateFromGroup,
 } from '../hooks/useTripGroups'
-import { useAllTemplates } from '../hooks/useSchedules'
+import { useTemplatesByDay } from '../hooks/useSchedules'
 import { toast } from '../store/toastStore'
 import { TripGroupListItem } from '../types/api'
 import { useAuth } from '../hooks/useAuth'
@@ -59,7 +59,7 @@ export function TripGroups() {
     search: search || undefined,
   })
   const { data: groupDetail } = useTripGroup(selectedGroupId || 0)
-  const { data: allTemplates, isLoading: templatesLoading } = useAllTemplates()
+  const { data: dayTemplatesData, isLoading: templatesLoading } = useTemplatesByDay(selectedDay)
   const createMutation = useCreateTripGroup()
   const updateMutation = useUpdateTripGroup()
   const deleteMutation = useDeleteTripGroup()
@@ -80,20 +80,10 @@ export function TripGroups() {
     },
   })
 
-  // Get templates for the selected day
+  // Templates for the selected day (already filtered by day and is_active from API)
   const dayTemplates = useMemo(() => {
-    if (!allTemplates) return []
-    // Debug logging
-    console.log('All templates:', allTemplates)
-    console.log('Selected day:', selectedDay, typeof selectedDay)
-    if (allTemplates.length > 0) {
-      console.log('First template day_of_week:', allTemplates[0].day_of_week, typeof allTemplates[0].day_of_week)
-      console.log('First template is_active:', allTemplates[0].is_active, typeof allTemplates[0].is_active)
-    }
-    const filtered = allTemplates.filter((t) => t.day_of_week === selectedDay && t.is_active)
-    console.log('Filtered templates for day', selectedDay, ':', filtered)
-    return filtered
-  }, [allTemplates, selectedDay])
+    return dayTemplatesData || []
+  }, [dayTemplatesData])
 
   // Available templates (not assigned to any group on this day)
   const availableTemplates = useMemo(() => {
