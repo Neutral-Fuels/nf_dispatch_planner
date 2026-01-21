@@ -64,7 +64,19 @@ export interface DailyTrend {
 // API functions
 const fetchDashboardSummary = async (date: string): Promise<DashboardSummary> => {
   const { data } = await api.get('/dashboard/summary', { params: { summary_date: date } })
-  return data
+  // Transform backend response to expected format
+  return {
+    date: data.date,
+    total_trips: data.trips?.total ?? 0,
+    assigned_trips: data.trips?.assigned ?? 0,
+    unassigned_trips: data.trips?.unassigned ?? 0,
+    conflict_trips: data.trips?.conflicts ?? 0,
+    completed_trips: data.trips?.completed ?? 0,
+    total_volume: data.volume?.total_scheduled ?? 0,
+    active_tankers: data.resources?.active_tankers ?? 0,
+    active_drivers: data.resources?.active_drivers ?? 0,
+    is_schedule_locked: data.schedule_locked ?? false,
+  }
 }
 
 const fetchAlerts = async (): Promise<Alert[]> => {
@@ -74,11 +86,33 @@ const fetchAlerts = async (): Promise<Alert[]> => {
 
 const fetchTankerUtilization = async (date: string): Promise<TankerUtilization[]> => {
   const { data } = await api.get('/dashboard/tanker-utilization', { params: { summary_date: date } })
-  return data.tankers || data
+  const tankers = data.tankers || data
+  // Transform backend field names to frontend expected format
+  return tankers.map((t: { tanker_id: number; tanker_name: string; max_capacity: number; trip_count: number; volume_scheduled: number; utilization_percent: number }) => ({
+    tanker_id: t.tanker_id,
+    tanker_name: t.tanker_name,
+    max_capacity: t.max_capacity,
+    trips_count: t.trip_count,
+    total_volume: t.volume_scheduled,
+    utilization_percentage: t.utilization_percent,
+  }))
 }
 
 const fetchDriverStatus = async (date: string): Promise<DriverStatusSummary[]> => {
   const { data } = await api.get('/dashboard/driver-status', { params: { summary_date: date } })
+  // Transform backend response { summary: { working: 5, off: 2, ... }, drivers: [...] }
+  // to array format [{ status: 'working', count: 5, percentage: 25 }, ...]
+  if (data.summary) {
+    const summary = data.summary as Record<string, number>
+    const total = Object.values(summary).reduce((sum: number, count: number) => sum + count, 0)
+    return Object.entries(summary)
+      .filter(([status]) => status !== 'unset')
+      .map(([status, count]) => ({
+        status,
+        count: count as number,
+        percentage: total > 0 ? Math.round(((count as number) / total) * 100) : 0,
+      }))
+  }
   return data
 }
 

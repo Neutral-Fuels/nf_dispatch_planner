@@ -77,7 +77,9 @@ const fetchDailySchedule = async (date: string): Promise<DailySchedule> => {
 }
 
 const generateSchedule = async (request: GenerateScheduleRequest): Promise<DailySchedule> => {
-  const { data } = await api.post('/schedules/generate', request)
+  const { data } = await api.post(`/schedules/${request.date}/generate`, {
+    overwrite_existing: request.overwrite || false
+  })
   return data
 }
 
@@ -92,12 +94,12 @@ const unlockSchedule = async (date: string): Promise<DailySchedule> => {
 }
 
 const updateTrip = async ({ id, ...trip }: UpdateTripRequest & { id: number }): Promise<Trip> => {
-  const { data } = await api.put(`/trips/${id}`, trip)
+  const { data } = await api.put(`/schedules/trips/${id}`, trip)
   return data
 }
 
 const deleteTrip = async (id: number): Promise<void> => {
-  await api.delete(`/trips/${id}`)
+  await api.delete(`/schedules/trips/${id}`)
 }
 
 // Hooks
