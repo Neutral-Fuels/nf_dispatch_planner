@@ -1,6 +1,6 @@
 import { Fragment, ReactNode } from 'react'
 import { X } from 'lucide-react'
-import { cn } from '../../utils/formatters'
+import { cn } from '../../utils/cn'
 
 interface ModalProps {
   isOpen: boolean
