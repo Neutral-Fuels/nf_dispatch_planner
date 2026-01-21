@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { format, addWeeks, subWeeks, startOfWeek } from 'date-fns'
+import { format, addWeeks, subWeeks } from 'date-fns'
 import {
   ChevronLeft,
   ChevronRight,
@@ -25,7 +25,7 @@ import {
   useClearWeekAssignments,
 } from '../hooks/useAssignments'
 import { toast } from '../store/toastStore'
-import { TripGroupBasic, DriverBasic, WeeklyDriverAssignment } from '../types/api'
+import { TripGroupBasic, WeeklyDriverAssignment } from '../types/api'
 import { useAuth } from '../hooks/useAuth'
 
 // Get week start (Saturday) for a date
@@ -53,7 +53,7 @@ export function WeeklyAssignments() {
   weekEndDate.setDate(weekEndDate.getDate() - 1)
 
   // Queries and mutations
-  const { data, isLoading, refetch } = useWeeklyAssignments(weekStartStr)
+  const { data, isLoading } = useWeeklyAssignments(weekStartStr)
   const createMutation = useCreateAssignment()
   const deleteMutation = useDeleteAssignment()
   const autoAssignMutation = useAutoAssign()

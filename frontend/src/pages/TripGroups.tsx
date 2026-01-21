@@ -22,7 +22,7 @@ import {
 } from '../hooks/useTripGroups'
 import { useAllTemplates } from '../hooks/useSchedules'
 import { toast } from '../store/toastStore'
-import { TripGroupListItem, TripGroup, WeeklyTemplate } from '../types/api'
+import { TripGroupListItem } from '../types/api'
 import { useAuth } from '../hooks/useAuth'
 
 // Form validation schema
