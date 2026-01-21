@@ -61,7 +61,7 @@ def list_trip_groups(
         .all()
     )
 
-    # Build response with template counts
+    # Build response with template counts and time calculations
     items = []
     for group in groups:
         items.append(
@@ -73,6 +73,11 @@ def list_trip_groups(
                 description=group.description,
                 is_active=group.is_active,
                 template_count=len(group.templates),
+                template_ids=[t.id for t in group.templates],
+                earliest_start_time=group.earliest_start_time,
+                latest_end_time=group.latest_end_time,
+                total_duration_minutes=group.total_duration_minutes,
+                total_volume=group.total_volume,
                 created_at=group.created_at,
             )
         )
@@ -129,6 +134,10 @@ def create_trip_group(
         is_active=group.is_active,
         templates=group.templates,
         template_count=len(group.templates),
+        earliest_start_time=group.earliest_start_time,
+        latest_end_time=group.latest_end_time,
+        total_duration_minutes=group.total_duration_minutes,
+        total_volume=group.total_volume,
         created_at=group.created_at,
         updated_at=group.updated_at,
     )
@@ -157,6 +166,10 @@ def get_trip_group(
         is_active=group.is_active,
         templates=group.templates,
         template_count=len(group.templates),
+        earliest_start_time=group.earliest_start_time,
+        latest_end_time=group.latest_end_time,
+        total_duration_minutes=group.total_duration_minutes,
+        total_volume=group.total_volume,
         created_at=group.created_at,
         updated_at=group.updated_at,
     )
@@ -212,6 +225,10 @@ def update_trip_group(
         is_active=group.is_active,
         templates=group.templates,
         template_count=len(group.templates),
+        earliest_start_time=group.earliest_start_time,
+        latest_end_time=group.latest_end_time,
+        total_duration_minutes=group.total_duration_minutes,
+        total_volume=group.total_volume,
         created_at=group.created_at,
         updated_at=group.updated_at,
     )
@@ -285,6 +302,10 @@ def add_templates_to_group(
         is_active=group.is_active,
         templates=group.templates,
         template_count=len(group.templates),
+        earliest_start_time=group.earliest_start_time,
+        latest_end_time=group.latest_end_time,
+        total_duration_minutes=group.total_duration_minutes,
+        total_volume=group.total_volume,
         created_at=group.created_at,
         updated_at=group.updated_at,
     )
@@ -319,6 +340,10 @@ def remove_template_from_group(
         is_active=group.is_active,
         templates=group.templates,
         template_count=len(group.templates),
+        earliest_start_time=group.earliest_start_time,
+        latest_end_time=group.latest_end_time,
+        total_duration_minutes=group.total_duration_minutes,
+        total_volume=group.total_volume,
         created_at=group.created_at,
         updated_at=group.updated_at,
     )
@@ -354,6 +379,10 @@ def remove_templates_from_group(
         is_active=group.is_active,
         templates=group.templates,
         template_count=len(group.templates),
+        earliest_start_time=group.earliest_start_time,
+        latest_end_time=group.latest_end_time,
+        total_duration_minutes=group.total_duration_minutes,
+        total_volume=group.total_volume,
         created_at=group.created_at,
         updated_at=group.updated_at,
     )

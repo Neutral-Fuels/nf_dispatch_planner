@@ -1,6 +1,6 @@
 """Trip Group models for weekly driver assignments."""
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
@@ -92,6 +92,39 @@ class TripGroup(Base):
     def day_name(self) -> str:
         """Get human-readable day name."""
         return self.DAY_NAMES[self.day_of_week]
+
+    @property
+    def earliest_start_time(self) -> Optional[time]:
+        """Get the earliest start time among all active templates."""
+        active_templates = [t for t in self.templates if t.is_active]
+        if not active_templates:
+            return None
+        return min(t.start_time for t in active_templates)
+
+    @property
+    def latest_end_time(self) -> Optional[time]:
+        """Get the latest end time among all active templates."""
+        active_templates = [t for t in self.templates if t.is_active]
+        if not active_templates:
+            return None
+        return max(t.end_time for t in active_templates)
+
+    @property
+    def total_duration_minutes(self) -> Optional[int]:
+        """Get total duration from earliest start to latest end in minutes."""
+        start = self.earliest_start_time
+        end = self.latest_end_time
+        if not start or not end:
+            return None
+        start_minutes = start.hour * 60 + start.minute
+        end_minutes = end.hour * 60 + end.minute
+        return end_minutes - start_minutes
+
+    @property
+    def total_volume(self) -> int:
+        """Get total volume from all active templates."""
+        active_templates = [t for t in self.templates if t.is_active]
+        return sum(t.volume for t in active_templates)
 
     def __repr__(self) -> str:
         return f"<TripGroup {self.name} on {self.day_name}>"

@@ -182,6 +182,11 @@ export interface TripGroup {
   is_active: boolean
   templates: TemplateBasic[]
   template_count: number
+  // Time calculations
+  earliest_start_time: string | null
+  latest_end_time: string | null
+  total_duration_minutes: number | null
+  total_volume: number
   created_at: string
   updated_at: string
 }
@@ -194,6 +199,12 @@ export interface TripGroupListItem {
   description: string | null
   is_active: boolean
   template_count: number
+  template_ids: number[]  // IDs of assigned templates
+  // Time calculations
+  earliest_start_time: string | null
+  latest_end_time: string | null
+  total_duration_minutes: number | null
+  total_volume: number
   created_at: string
 }
 

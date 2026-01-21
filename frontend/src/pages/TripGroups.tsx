@@ -85,16 +85,20 @@ export function TripGroups() {
     return dayTemplatesData || []
   }, [dayTemplatesData])
 
+  // Get all template IDs that are already assigned to ANY group on this day
+  const allAssignedTemplateIds = useMemo(() => {
+    if (!groupsData?.items) return new Set<number>()
+    const ids = new Set<number>()
+    groupsData.items.forEach((group) => {
+      group.template_ids?.forEach((id) => ids.add(id))
+    })
+    return ids
+  }, [groupsData])
+
   // Available templates (not assigned to any group on this day)
   const availableTemplates = useMemo(() => {
-    // For a proper implementation, we'd need to track all assigned templates
-    // For now, show templates not in the currently expanded group
-    if (!expandedGroupId || !groupDetail) {
-      return dayTemplates
-    }
-    const assignedIds = new Set(groupDetail.templates.map((t) => t.id))
-    return dayTemplates.filter((t) => !assignedIds.has(t.id))
-  }, [dayTemplates, expandedGroupId, groupDetail])
+    return dayTemplates.filter((t) => !allAssignedTemplateIds.has(t.id))
+  }, [dayTemplates, allAssignedTemplateIds])
 
   // Handlers
   const handleDayChange = (day: number) => {
@@ -302,16 +306,31 @@ export function TripGroups() {
                       </div>
                       <div>
                         <div className="font-medium text-gray-900">{group.name}</div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <Badge variant="info" className="text-xs">
                             {group.template_count} templates
                           </Badge>
-                          {group.description && (
-                            <span className="text-xs text-gray-500 line-clamp-1">
-                              {group.description}
-                            </span>
+                          {group.earliest_start_time && group.latest_end_time && (
+                            <Badge variant="secondary" className="text-xs">
+                              {formatTime(group.earliest_start_time)} - {formatTime(group.latest_end_time)}
+                            </Badge>
+                          )}
+                          {group.total_duration_minutes != null && group.total_duration_minutes > 0 && (
+                            <Badge variant="secondary" className="text-xs">
+                              {Math.floor(group.total_duration_minutes / 60)}h {group.total_duration_minutes % 60}m
+                            </Badge>
+                          )}
+                          {group.total_volume > 0 && (
+                            <Badge variant="success" className="text-xs">
+                              {group.total_volume.toLocaleString()} L
+                            </Badge>
                           )}
                         </div>
+                        {group.description && (
+                          <span className="text-xs text-gray-500 line-clamp-1 mt-1 block">
+                            {group.description}
+                          </span>
+                        )}
                       </div>
                     </div>
                     {canEdit && (

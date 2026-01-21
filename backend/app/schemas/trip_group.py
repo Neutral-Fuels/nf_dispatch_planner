@@ -99,6 +99,11 @@ class TripGroupResponse(BaseModel):
     is_active: bool
     templates: list[TemplateBasicResponse]
     template_count: int
+    # Time calculations
+    earliest_start_time: Optional[time]
+    latest_end_time: Optional[time]
+    total_duration_minutes: Optional[int]
+    total_volume: int
     created_at: datetime
     updated_at: datetime
 
@@ -107,7 +112,7 @@ class TripGroupResponse(BaseModel):
 
     @classmethod
     def from_orm_with_count(cls, obj):
-        """Create response with computed template_count."""
+        """Create response with computed fields."""
         data = {
             "id": obj.id,
             "name": obj.name,
@@ -117,6 +122,10 @@ class TripGroupResponse(BaseModel):
             "is_active": obj.is_active,
             "templates": obj.templates,
             "template_count": len(obj.templates),
+            "earliest_start_time": obj.earliest_start_time,
+            "latest_end_time": obj.latest_end_time,
+            "total_duration_minutes": obj.total_duration_minutes,
+            "total_volume": obj.total_volume,
             "created_at": obj.created_at,
             "updated_at": obj.updated_at,
         }
@@ -133,6 +142,12 @@ class TripGroupListResponse(BaseModel):
     description: Optional[str]
     is_active: bool
     template_count: int
+    template_ids: list[int]  # IDs of assigned templates
+    # Time calculations
+    earliest_start_time: Optional[time]
+    latest_end_time: Optional[time]
+    total_duration_minutes: Optional[int]
+    total_volume: int
     created_at: datetime
 
     class Config:
