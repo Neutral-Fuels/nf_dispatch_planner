@@ -86,19 +86,6 @@ export function TripGroups() {
     return allTemplates.filter((t) => t.day_of_week === selectedDay && t.is_active)
   }, [allTemplates, selectedDay])
 
-  // Get templates already assigned to groups for this day
-  const assignedTemplateIds = useMemo(() => {
-    const ids = new Set<number>()
-    if (groupsData?.items) {
-      // We need to get the full details of each group to know which templates are assigned
-      // For now, use groupDetail if available
-      if (groupDetail && groupDetail.day_of_week === selectedDay) {
-        groupDetail.templates.forEach((t) => ids.add(t.id))
-      }
-    }
-    return ids
-  }, [groupsData, groupDetail, selectedDay])
-
   // Available templates (not assigned to any group on this day)
   const availableTemplates = useMemo(() => {
     // For a proper implementation, we'd need to track all assigned templates
