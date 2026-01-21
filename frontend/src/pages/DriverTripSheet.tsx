@@ -75,7 +75,7 @@ export function DriverTripSheet() {
               label="Select Driver"
               options={driverOptions}
               value={selectedDriverId || 0}
-              onChange={(val) => setSelectedDriverId(Number(val) || null)}
+              onChange={(e) => setSelectedDriverId(Number(e.target.value) || null)}
             />
           </div>
 

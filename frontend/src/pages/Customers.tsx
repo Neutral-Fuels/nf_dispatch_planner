@@ -337,16 +337,16 @@ export function Customers() {
                 { value: 'mobile', label: 'Mobile' },
               ]}
               value={typeFilter}
-              onChange={(value) => setTypeFilter(value as CustomerType | '')}
+              onChange={(e) => setTypeFilter(e.target.value as CustomerType | '')}
             />
             <Select
               label="Emirate"
               options={[
                 { value: '', label: 'All Emirates' },
-                ...emirateOptions.map((e) => ({ value: String(e.value), label: e.label })),
+                ...emirateOptions.map((opt) => ({ value: String(opt.value), label: opt.label })),
               ]}
               value={emirateFilter}
-              onChange={(value) => setEmirateFilter(value)}
+              onChange={(e) => setEmirateFilter(e.target.value)}
             />
             <div className="flex items-end">
               <Button
@@ -419,7 +419,7 @@ export function Customers() {
                     label="Fuel Blend"
                     options={fuelBlendSelectOptions}
                     value={field.value || 0}
-                    onChange={(val) => field.onChange(Number(val))}
+                    onChange={(e) => field.onChange(Number(e.target.value))}
                     error={errors.fuel_blend_id?.message}
                   />
                 )}
@@ -441,7 +441,7 @@ export function Customers() {
                     label="Emirate"
                     options={emirateSelectOptions}
                     value={field.value || 0}
-                    onChange={(val) => field.onChange(Number(val))}
+                    onChange={(e) => field.onChange(Number(e.target.value))}
                     error={errors.emirate_id?.message}
                   />
                 )}

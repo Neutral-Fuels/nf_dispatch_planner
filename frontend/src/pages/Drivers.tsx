@@ -270,7 +270,7 @@ export function Drivers() {
                 { value: '3pl', label: '3PL' },
               ]}
               value={typeFilter}
-              onChange={(value) => setTypeFilter(value as DriverType | '')}
+              onChange={(e) => setTypeFilter(e.target.value as DriverType | '')}
             />
             <Select
               label="Status"
@@ -280,7 +280,7 @@ export function Drivers() {
                 { value: 'false', label: 'Inactive' },
               ]}
               value={activeFilter}
-              onChange={(value) => setActiveFilter(value)}
+              onChange={(e) => setActiveFilter(e.target.value)}
             />
             <div className="flex items-end">
               <Button

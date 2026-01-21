@@ -351,7 +351,7 @@ export function WeeklyTemplates() {
                   required
                   options={customerOptions}
                   value={field.value}
-                  onChange={(val) => field.onChange(Number(val))}
+                  onChange={(e) => field.onChange(Number(e.target.value))}
                   error={errors.customer_id?.message}
                 />
               )}
@@ -400,7 +400,7 @@ export function WeeklyTemplates() {
                     label="Fuel Blend"
                     options={fuelBlendSelectOptions}
                     value={field.value || 0}
-                    onChange={(val) => field.onChange(Number(val))}
+                    onChange={(e) => field.onChange(Number(e.target.value))}
                     error={errors.fuel_blend_id?.message}
                   />
                 )}
@@ -415,7 +415,7 @@ export function WeeklyTemplates() {
                   label="Default Tanker"
                   options={tankerOptions}
                   value={field.value || 0}
-                  onChange={(val) => field.onChange(Number(val))}
+                  onChange={(e) => field.onChange(Number(e.target.value))}
                   error={errors.tanker_id?.message}
                 />
               )}

@@ -1,4 +1,4 @@
-import { forwardRef, SelectHTMLAttributes, ChangeEvent } from 'react'
+import { forwardRef, SelectHTMLAttributes } from 'react'
 import { cn } from '../../utils/cn'
 
 export interface SelectOption {

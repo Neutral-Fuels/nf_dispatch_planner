@@ -355,7 +355,7 @@ export function Tankers() {
                 { value: 'both', label: 'Both' },
               ]}
               value={deliveryTypeFilter}
-              onChange={(value) => setDeliveryTypeFilter(value as DeliveryType | '')}
+              onChange={(e) => setDeliveryTypeFilter(e.target.value as DeliveryType | '')}
             />
             <Select
               label="Status"
@@ -366,7 +366,7 @@ export function Tankers() {
                 { value: 'inactive', label: 'Inactive' },
               ]}
               value={statusFilter}
-              onChange={(value) => setStatusFilter(value as TankerStatus | '')}
+              onChange={(e) => setStatusFilter(e.target.value as TankerStatus | '')}
             />
             <div className="flex items-end">
               <Button
@@ -459,7 +459,7 @@ export function Tankers() {
                     label="Default Driver"
                     options={driverOptions}
                     value={field.value || 0}
-                    onChange={(val) => field.onChange(Number(val))}
+                    onChange={(e) => field.onChange(Number(e.target.value))}
                     error={errors.default_driver_id?.message}
                   />
                 )}

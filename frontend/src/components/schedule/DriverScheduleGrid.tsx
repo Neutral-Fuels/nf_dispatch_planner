@@ -340,7 +340,7 @@ export function DriverScheduleGrid({ className }: DriverScheduleGridProps) {
             label="Select Driver"
             options={driverOptions}
             value={selectedDriver || 0}
-            onChange={(val) => setSelectedDriver(Number(val))}
+            onChange={(e) => setSelectedDriver(Number(e.target.value))}
           />
 
           <Select
@@ -352,7 +352,7 @@ export function DriverScheduleGrid({ className }: DriverScheduleGridProps) {
               { value: 'float', label: 'Float' },
             ]}
             value={bulkStatus}
-            onChange={(val) => setBulkStatus(val as DriverStatus)}
+            onChange={(e) => setBulkStatus(e.target.value as DriverStatus)}
           />
 
           <div>

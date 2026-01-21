@@ -587,7 +587,7 @@ export function DailySchedule() {
                     label="Tanker"
                     options={tankerOptions}
                     value={field.value || 0}
-                    onChange={(val) => field.onChange(Number(val))}
+                    onChange={(e) => field.onChange(Number(e.target.value))}
                     error={errors.tanker_id?.message}
                   />
                 )}
@@ -601,7 +601,7 @@ export function DailySchedule() {
                     label="Driver"
                     options={driverOptions}
                     value={field.value || 0}
-                    onChange={(val) => field.onChange(Number(val))}
+                    onChange={(e) => field.onChange(Number(e.target.value))}
                     error={errors.driver_id?.message}
                   />
                 )}

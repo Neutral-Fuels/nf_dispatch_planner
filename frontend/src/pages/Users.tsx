@@ -369,7 +369,7 @@ export function Users() {
                 { value: 'viewer', label: 'Viewer' },
               ]}
               value={roleFilter}
-              onChange={(value) => setRoleFilter(value as UserRole | '')}
+              onChange={(e) => setRoleFilter(e.target.value as UserRole | '')}
             />
             <div></div>
             <div className="flex items-end">
