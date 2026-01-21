@@ -17,15 +17,20 @@ export interface TripGroupQueryParams {
   per_page?: number
   search?: string
   is_active?: boolean
+  day_of_week?: number
 }
 
 export interface CreateTripGroupRequest {
   name: string
+  day_of_week: number
   description?: string | null
   template_ids?: number[]
 }
 
-export interface UpdateTripGroupRequest extends Partial<CreateTripGroupRequest> {
+export interface UpdateTripGroupRequest {
+  name?: string
+  description?: string | null
+  template_ids?: number[]
   is_active?: boolean
 }
 

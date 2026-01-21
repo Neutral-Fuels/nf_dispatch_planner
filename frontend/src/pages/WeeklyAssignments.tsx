@@ -9,6 +9,7 @@ import {
   CheckCircle,
   Users,
   Layers,
+  Calendar,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle } from '../components/common/Card'
 import { Button } from '../components/common/Button'
@@ -27,6 +28,17 @@ import {
 import { toast } from '../store/toastStore'
 import { TripGroupBasic, WeeklyDriverAssignment } from '../types/api'
 import { useAuth } from '../hooks/useAuth'
+
+// Day names for UAE week
+const DAYS = [
+  { value: 0, label: 'Saturday', short: 'Sat' },
+  { value: 1, label: 'Sunday', short: 'Sun' },
+  { value: 2, label: 'Monday', short: 'Mon' },
+  { value: 3, label: 'Tuesday', short: 'Tue' },
+  { value: 4, label: 'Wednesday', short: 'Wed' },
+  { value: 5, label: 'Thursday', short: 'Thu' },
+  { value: 6, label: 'Friday', short: 'Fri' },
+]
 
 // Get week start (Saturday) for a date
 function getWeekStart(date: Date): Date {
@@ -70,6 +82,35 @@ export function WeeklyAssignments() {
     ]
   }, [data?.available_drivers])
 
+  // Group assignments and unassigned by day
+  const assignmentsByDay = useMemo(() => {
+    const byDay: Record<number, WeeklyDriverAssignment[]> = {}
+    DAYS.forEach((d) => (byDay[d.value] = []))
+
+    data?.assignments.forEach((a) => {
+      const day = a.trip_group.day_of_week
+      if (byDay[day]) {
+        byDay[day].push(a)
+      }
+    })
+
+    return byDay
+  }, [data?.assignments])
+
+  const unassignedByDay = useMemo(() => {
+    const byDay: Record<number, TripGroupBasic[]> = {}
+    DAYS.forEach((d) => (byDay[d.value] = []))
+
+    data?.unassigned_groups.forEach((g) => {
+      const day = g.day_of_week
+      if (byDay[day]) {
+        byDay[day].push(g)
+      }
+    })
+
+    return byDay
+  }, [data?.unassigned_groups])
+
   // Navigation
   const goToPreviousWeek = () => {
     setCurrentWeekStart(subWeeks(currentWeekStart, 1))
@@ -110,7 +151,7 @@ export function WeeklyAssignments() {
     try {
       await deleteMutation.mutateAsync(assignment.id)
       toast.success('Assignment removed')
-    } catch (error) {
+    } catch {
       toast.error('Failed to remove assignment')
     }
   }
@@ -124,7 +165,7 @@ export function WeeklyAssignments() {
       })
       toast.success(result.message)
       setAutoAssignModalOpen(false)
-    } catch (error) {
+    } catch {
       toast.error('Failed to auto-assign drivers')
     }
   }
@@ -134,10 +175,14 @@ export function WeeklyAssignments() {
       await clearMutation.mutateAsync(weekStartStr)
       toast.success('All assignments cleared for this week')
       setClearConfirmOpen(false)
-    } catch (error) {
+    } catch {
       toast.error('Failed to clear assignments')
     }
   }
+
+  // Calculate total counts
+  const totalAssigned = data?.assignments.length || 0
+  const totalUnassigned = data?.unassigned_groups.length || 0
 
   return (
     <div className="space-y-6">
@@ -190,119 +235,181 @@ export function WeeklyAssignments() {
         </div>
       </Card>
 
+      {/* Summary Stats */}
+      <div className="grid grid-cols-3 gap-4">
+        <Card>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-gray-900">{totalAssigned}</div>
+              <div className="text-sm text-gray-500">Assigned</div>
+            </div>
+          </div>
+        </Card>
+        <Card>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-yellow-100">
+              <AlertTriangle className="h-5 w-5 text-yellow-600" />
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-gray-900">{totalUnassigned}</div>
+              <div className="text-sm text-gray-500">Unassigned</div>
+            </div>
+          </div>
+        </Card>
+        <Card>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
+              <Users className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-gray-900">{data?.available_drivers.length || 0}</div>
+              <div className="text-sm text-gray-500">Available Drivers</div>
+            </div>
+          </div>
+        </Card>
+      </div>
+
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
           <Loader size="lg" />
         </div>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Assigned Groups */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CheckCircle className="h-5 w-5 text-green-500" />
-                Assigned ({data?.assignments.length || 0})
-              </CardTitle>
-            </CardHeader>
-            {data?.assignments.length === 0 ? (
-              <p className="text-sm text-gray-500 italic py-4">No assignments for this week</p>
-            ) : (
-              <div className="space-y-3">
-                {data?.assignments.map((assignment) => (
-                  <div
-                    key={assignment.id}
-                    className="flex items-center justify-between rounded-lg border p-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-100 text-primary-600">
-                        <Layers className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <div className="font-medium text-gray-900">
-                          {assignment.trip_group.name}
-                        </div>
-                        <div className="flex items-center gap-2 text-sm text-gray-500">
-                          <Users className="h-4 w-4" />
-                          {assignment.driver.name}
-                        </div>
-                      </div>
-                    </div>
-                    {canEdit && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteAssignment(assignment)}
-                        disabled={deleteMutation.isPending}
-                      >
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
+        <div className="space-y-6">
+          {/* Day-by-day view */}
+          {DAYS.map((day) => {
+            const dayAssignments = assignmentsByDay[day.value] || []
+            const dayUnassigned = unassignedByDay[day.value] || []
+            const hasContent = dayAssignments.length > 0 || dayUnassigned.length > 0
 
-          {/* Unassigned Groups */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                Unassigned ({data?.unassigned_groups.length || 0})
-              </CardTitle>
-            </CardHeader>
-            {data?.unassigned_groups.length === 0 ? (
-              <p className="text-sm text-gray-500 italic py-4">
-                All groups have been assigned
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {data?.unassigned_groups.map((group) => (
-                  <div
-                    key={group.id}
-                    className="flex items-center justify-between rounded-lg border border-yellow-200 bg-yellow-50 p-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-yellow-100 text-yellow-600">
-                        <Layers className="h-5 w-5" />
+            if (!hasContent) return null
+
+            return (
+              <Card key={day.value}>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5 text-primary-500" />
+                    {day.label}
+                    <Badge variant="secondary" className="ml-2">
+                      {dayAssignments.length} assigned
+                    </Badge>
+                    {dayUnassigned.length > 0 && (
+                      <Badge variant="warning" className="ml-1">
+                        {dayUnassigned.length} unassigned
+                      </Badge>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+
+                <div className="grid gap-4 lg:grid-cols-2">
+                  {/* Assigned Groups */}
+                  {dayAssignments.length > 0 && (
+                    <div>
+                      <div className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        Assigned
                       </div>
-                      <div>
-                        <div className="font-medium text-gray-900">{group.name}</div>
-                        {group.description && (
-                          <div className="text-sm text-gray-500 line-clamp-1">
-                            {group.description}
+                      <div className="space-y-2">
+                        {dayAssignments.map((assignment) => (
+                          <div
+                            key={assignment.id}
+                            className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 p-3"
+                          >
+                            <div className="flex items-center gap-3">
+                              <Layers className="h-4 w-4 text-green-600" />
+                              <div>
+                                <div className="font-medium text-gray-900">
+                                  {assignment.trip_group.name}
+                                </div>
+                                <div className="flex items-center gap-1 text-sm text-gray-600">
+                                  <Users className="h-3 w-3" />
+                                  {assignment.driver.name}
+                                </div>
+                              </div>
+                            </div>
+                            {canEdit && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteAssignment(assignment)}
+                                disabled={deleteMutation.isPending}
+                              >
+                                <Trash2 className="h-4 w-4 text-red-500" />
+                              </Button>
+                            )}
                           </div>
-                        )}
+                        ))}
                       </div>
                     </div>
-                    {canEdit && (
-                      <Button
-                        size="sm"
-                        onClick={() => handleAssignClick(group)}
-                        disabled={!data?.available_drivers.length}
-                      >
-                        Assign
-                      </Button>
-                    )}
-                  </div>
-                ))}
+                  )}
+
+                  {/* Unassigned Groups */}
+                  {dayUnassigned.length > 0 && (
+                    <div>
+                      <div className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
+                        <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                        Needs Assignment
+                      </div>
+                      <div className="space-y-2">
+                        {dayUnassigned.map((group) => (
+                          <div
+                            key={group.id}
+                            className="flex items-center justify-between rounded-lg border border-yellow-200 bg-yellow-50 p-3"
+                          >
+                            <div className="flex items-center gap-3">
+                              <Layers className="h-4 w-4 text-yellow-600" />
+                              <div>
+                                <div className="font-medium text-gray-900">{group.name}</div>
+                                {group.description && (
+                                  <div className="text-sm text-gray-500 line-clamp-1">
+                                    {group.description}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            {canEdit && (
+                              <Button
+                                size="sm"
+                                onClick={() => handleAssignClick(group)}
+                                disabled={!data?.available_drivers.length}
+                              >
+                                Assign
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )
+          })}
+
+          {/* Show message if no groups at all */}
+          {totalAssigned === 0 && totalUnassigned === 0 && (
+            <Card>
+              <div className="text-center py-8">
+                <Layers className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">No trip groups</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Create trip groups first to start assigning drivers.
+                </p>
               </div>
-            )}
-          </Card>
+            </Card>
+          )}
 
           {/* Available Drivers */}
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-blue-500" />
-                Available Drivers ({data?.available_drivers.length || 0})
-              </CardTitle>
-            </CardHeader>
-            {data?.available_drivers.length === 0 ? (
-              <p className="text-sm text-gray-500 italic py-4">
-                All drivers have been assigned
-              </p>
-            ) : (
+          {(data?.available_drivers.length ?? 0) > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-blue-500" />
+                  Available Drivers ({data?.available_drivers.length || 0})
+                </CardTitle>
+              </CardHeader>
               <div className="flex flex-wrap gap-2">
                 {data?.available_drivers.map((driver) => (
                   <Badge key={driver.id} variant="secondary" className="text-sm">
@@ -310,8 +417,8 @@ export function WeeklyAssignments() {
                   </Badge>
                 ))}
               </div>
-            )}
-          </Card>
+            </Card>
+          )}
         </div>
       )}
 
@@ -326,6 +433,13 @@ export function WeeklyAssignments() {
             Select a driver to assign to this trip group for the week of{' '}
             {format(currentWeekStart, 'MMM d, yyyy')}.
           </p>
+          {selectedGroup && (
+            <div className="bg-gray-50 rounded-lg p-3">
+              <div className="text-sm text-gray-500">Trip Group</div>
+              <div className="font-medium">{selectedGroup.name}</div>
+              <div className="text-sm text-gray-500 mt-1">Day: {selectedGroup.day_name}</div>
+            </div>
+          )}
           <Select
             label="Driver"
             options={driverOptions}

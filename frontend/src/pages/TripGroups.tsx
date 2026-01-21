@@ -2,15 +2,14 @@ import { useState, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Plus, Search, Edit2, Trash2, Layers, Calendar, Clock } from 'lucide-react'
-import { ColumnDef } from '@tanstack/react-table'
-import { Card } from '../components/common/Card'
+import { Plus, Search, Edit2, Trash2, Layers, Clock, ArrowRight, X } from 'lucide-react'
+import { Card, CardHeader, CardTitle } from '../components/common/Card'
 import { Button } from '../components/common/Button'
 import { Input } from '../components/common/Input'
 import { Badge } from '../components/common/Badge'
-import { Table } from '../components/common/Table'
 import { Modal, ModalFooter } from '../components/common/Modal'
 import { ConfirmDialog } from '../components/common/ConfirmDialog'
+import { Loader } from '../components/common/Loader'
 import {
   useTripGroups,
   useCreateTripGroup,
@@ -25,6 +24,17 @@ import { toast } from '../store/toastStore'
 import { TripGroupListItem } from '../types/api'
 import { useAuth } from '../hooks/useAuth'
 
+// Day names for UAE week (Saturday - Friday)
+const DAYS = [
+  { value: 0, label: 'Saturday', short: 'Sat' },
+  { value: 1, label: 'Sunday', short: 'Sun' },
+  { value: 2, label: 'Monday', short: 'Mon' },
+  { value: 3, label: 'Tuesday', short: 'Tue' },
+  { value: 4, label: 'Wednesday', short: 'Wed' },
+  { value: 5, label: 'Thursday', short: 'Thu' },
+  { value: 6, label: 'Friday', short: 'Fri' },
+]
+
 // Form validation schema
 const tripGroupSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
@@ -33,22 +43,23 @@ const tripGroupSchema = z.object({
 
 type TripGroupFormData = z.infer<typeof tripGroupSchema>
 
-// Day names
-const DAY_NAMES = ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri']
-
 export function TripGroups() {
   const { canEdit } = useAuth()
+  const [selectedDay, setSelectedDay] = useState(0) // Start with Saturday
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
-  const [templatesModalOpen, setTemplatesModalOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedGroup, setSelectedGroup] = useState<TripGroupListItem | null>(null)
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null)
+  const [expandedGroupId, setExpandedGroupId] = useState<number | null>(null)
 
   // Queries and mutations
-  const { data, isLoading } = useTripGroups({ search: search || undefined })
+  const { data: groupsData, isLoading: groupsLoading } = useTripGroups({
+    day_of_week: selectedDay,
+    search: search || undefined,
+  })
   const { data: groupDetail } = useTripGroup(selectedGroupId || 0)
-  const { data: allTemplates } = useAllTemplates()
+  const { data: allTemplates, isLoading: templatesLoading } = useAllTemplates()
   const createMutation = useCreateTripGroup()
   const updateMutation = useUpdateTripGroup()
   const deleteMutation = useDeleteTripGroup()
@@ -69,114 +80,44 @@ export function TripGroups() {
     },
   })
 
-  // Group templates by day for display
-  const templatesByDay = useMemo(() => {
-    if (!groupDetail?.templates) return {}
-    const grouped: Record<number, typeof groupDetail.templates> = {}
-    groupDetail.templates.forEach((t) => {
-      if (!grouped[t.day_of_week]) grouped[t.day_of_week] = []
-      grouped[t.day_of_week].push(t)
-    })
-    // Sort by start time within each day
-    Object.keys(grouped).forEach((day) => {
-      grouped[Number(day)].sort((a, b) => a.start_time.localeCompare(b.start_time))
-    })
-    return grouped
-  }, [groupDetail])
+  // Get templates for the selected day
+  const dayTemplates = useMemo(() => {
+    if (!allTemplates) return []
+    return allTemplates.filter((t) => t.day_of_week === selectedDay && t.is_active)
+  }, [allTemplates, selectedDay])
 
-  // Available templates (not in current group)
+  // Get templates already assigned to groups for this day
+  const assignedTemplateIds = useMemo(() => {
+    const ids = new Set<number>()
+    if (groupsData?.items) {
+      // We need to get the full details of each group to know which templates are assigned
+      // For now, use groupDetail if available
+      if (groupDetail && groupDetail.day_of_week === selectedDay) {
+        groupDetail.templates.forEach((t) => ids.add(t.id))
+      }
+    }
+    return ids
+  }, [groupsData, groupDetail, selectedDay])
+
+  // Available templates (not assigned to any group on this day)
   const availableTemplates = useMemo(() => {
-    if (!allTemplates || !groupDetail) return []
+    // For a proper implementation, we'd need to track all assigned templates
+    // For now, show templates not in the currently expanded group
+    if (!expandedGroupId || !groupDetail) {
+      return dayTemplates
+    }
     const assignedIds = new Set(groupDetail.templates.map((t) => t.id))
-    return allTemplates.filter((t) => !assignedIds.has(t.id) && t.is_active)
-  }, [allTemplates, groupDetail])
-
-  // Table columns
-  const columns: ColumnDef<TripGroupListItem>[] = useMemo(
-    () => [
-      {
-        accessorKey: 'name',
-        header: 'Trip Group',
-        cell: ({ row }) => (
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-100 text-primary-600">
-              <Layers className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="font-medium text-gray-900">{row.original.name}</div>
-              {row.original.description && (
-                <div className="text-xs text-gray-500 line-clamp-1">
-                  {row.original.description}
-                </div>
-              )}
-            </div>
-          </div>
-        ),
-      },
-      {
-        accessorKey: 'template_count',
-        header: 'Templates',
-        cell: ({ row }) => (
-          <Badge variant="info">{row.original.template_count} templates</Badge>
-        ),
-      },
-      {
-        accessorKey: 'is_active',
-        header: 'Status',
-        cell: ({ row }) => (
-          <Badge variant={row.original.is_active ? 'success' : 'secondary'}>
-            {row.original.is_active ? 'Active' : 'Inactive'}
-          </Badge>
-        ),
-      },
-      ...(canEdit
-        ? [
-            {
-              id: 'actions',
-              header: 'Actions',
-              cell: ({ row }: { row: { original: TripGroupListItem } }) => (
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleManageTemplates(row.original)
-                    }}
-                  >
-                    <Calendar className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleEdit(row.original)
-                    }}
-                  >
-                    <Edit2 className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleDeleteClick(row.original)
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4 text-red-500" />
-                  </Button>
-                </div>
-              ),
-            },
-          ]
-        : []),
-    ],
-    [canEdit]
-  )
+    return dayTemplates.filter((t) => !assignedIds.has(t.id))
+  }, [dayTemplates, expandedGroupId, groupDetail])
 
   // Handlers
-  const handleAdd = () => {
+  const handleDayChange = (day: number) => {
+    setSelectedDay(day)
+    setExpandedGroupId(null)
+    setSelectedGroupId(null)
+  }
+
+  const handleAddGroup = () => {
     setSelectedGroup(null)
     reset({
       name: '',
@@ -185,7 +126,7 @@ export function TripGroups() {
     setModalOpen(true)
   }
 
-  const handleEdit = (group: TripGroupListItem) => {
+  const handleEditGroup = (group: TripGroupListItem) => {
     setSelectedGroup(group)
     reset({
       name: group.name,
@@ -194,10 +135,14 @@ export function TripGroups() {
     setModalOpen(true)
   }
 
-  const handleManageTemplates = (group: TripGroupListItem) => {
-    setSelectedGroup(group)
-    setSelectedGroupId(group.id)
-    setTemplatesModalOpen(true)
+  const handleExpandGroup = (group: TripGroupListItem) => {
+    if (expandedGroupId === group.id) {
+      setExpandedGroupId(null)
+      setSelectedGroupId(null)
+    } else {
+      setExpandedGroupId(group.id)
+      setSelectedGroupId(group.id)
+    }
   }
 
   const handleDeleteClick = (group: TripGroupListItem) => {
@@ -211,11 +156,14 @@ export function TripGroups() {
         await updateMutation.mutateAsync({ id: selectedGroup.id, ...data })
         toast.success('Trip group updated successfully')
       } else {
-        await createMutation.mutateAsync(data)
+        await createMutation.mutateAsync({
+          ...data,
+          day_of_week: selectedDay,
+        })
         toast.success('Trip group created successfully')
       }
       setModalOpen(false)
-    } catch (error) {
+    } catch {
       toast.error('Failed to save trip group')
     }
   }
@@ -227,36 +175,42 @@ export function TripGroups() {
       toast.success('Trip group deleted successfully')
       setDeleteDialogOpen(false)
       setSelectedGroup(null)
-    } catch (error) {
+      if (expandedGroupId === selectedGroup.id) {
+        setExpandedGroupId(null)
+        setSelectedGroupId(null)
+      }
+    } catch {
       toast.error('Failed to delete trip group')
     }
   }
 
   const handleAddTemplate = async (templateId: number) => {
-    if (!selectedGroupId) return
+    if (!expandedGroupId) return
     try {
       await addTemplatesMutation.mutateAsync({
-        id: selectedGroupId,
+        id: expandedGroupId,
         template_ids: [templateId],
       })
       toast.success('Template added to group')
-    } catch (error) {
+    } catch {
       toast.error('Failed to add template')
     }
   }
 
   const handleRemoveTemplate = async (templateId: number) => {
-    if (!selectedGroupId) return
+    if (!expandedGroupId) return
     try {
       await removeTemplateMutation.mutateAsync({
-        groupId: selectedGroupId,
+        groupId: expandedGroupId,
         templateId,
       })
       toast.success('Template removed from group')
-    } catch (error) {
+    } catch {
       toast.error('Failed to remove template')
     }
   }
+
+  const formatTime = (time: string) => time.slice(0, 5)
 
   return (
     <div className="space-y-6">
@@ -265,52 +219,275 @@ export function TripGroups() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Trip Groups</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Group weekly templates for driver assignment
+            Group weekly templates by day for driver assignment
           </p>
         </div>
-        {canEdit && (
-          <Button onClick={handleAdd}>
-            <Plus className="h-4 w-4" />
-            Add Trip Group
-          </Button>
-        )}
       </div>
 
-      {/* Search */}
-      <Card>
-        <div className="flex items-center gap-4">
-          <div className="flex-1 min-w-[200px]">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <Input
-                type="text"
-                placeholder="Search trip groups..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </div>
-        </div>
-      </Card>
+      {/* Day Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-4 overflow-x-auto">
+          {DAYS.map((day) => (
+            <button
+              key={day.value}
+              onClick={() => handleDayChange(day.value)}
+              className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm transition-colors ${
+                selectedDay === day.value
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              {day.label}
+            </button>
+          ))}
+        </nav>
+      </div>
 
-      {/* Table */}
-      <Card padding="none">
-        <Table
-          data={data?.items || []}
-          columns={columns}
-          isLoading={isLoading}
-          searchColumn="name"
-          searchValue={search}
-          emptyMessage="No trip groups found"
-        />
-      </Card>
+      {/* Main Content - Two Columns */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Left Column - Trip Groups for this day */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Trip Groups - {DAYS[selectedDay].label}
+            </h2>
+            {canEdit && (
+              <Button size="sm" onClick={handleAddGroup}>
+                <Plus className="h-4 w-4" />
+                Add Group
+              </Button>
+            )}
+          </div>
+
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <Input
+              type="text"
+              placeholder="Search groups..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+
+          {groupsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader size="lg" />
+            </div>
+          ) : groupsData?.items.length === 0 ? (
+            <Card>
+              <div className="text-center py-8">
+                <Layers className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">No trip groups</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Create a trip group for {DAYS[selectedDay].label} to organize templates.
+                </p>
+                {canEdit && (
+                  <Button className="mt-4" onClick={handleAddGroup}>
+                    <Plus className="h-4 w-4" />
+                    Add Trip Group
+                  </Button>
+                )}
+              </div>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {groupsData?.items.map((group) => (
+                <Card
+                  key={group.id}
+                  className={`cursor-pointer transition-all ${
+                    expandedGroupId === group.id
+                      ? 'ring-2 ring-primary-500 shadow-md'
+                      : 'hover:shadow-md'
+                  }`}
+                  onClick={() => handleExpandGroup(group)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`flex h-10 w-10 items-center justify-center rounded-full ${
+                          expandedGroupId === group.id
+                            ? 'bg-primary-500 text-white'
+                            : 'bg-primary-100 text-primary-600'
+                        }`}
+                      >
+                        <Layers className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900">{group.name}</div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="info" className="text-xs">
+                            {group.template_count} templates
+                          </Badge>
+                          {group.description && (
+                            <span className="text-xs text-gray-500 line-clamp-1">
+                              {group.description}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    {canEdit && (
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditGroup(group)}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteClick(group)}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Expanded view - show templates in this group */}
+                  {expandedGroupId === group.id && groupDetail && (
+                    <div className="mt-4 pt-4 border-t">
+                      <div className="text-sm font-medium text-gray-700 mb-2">
+                        Templates in this group:
+                      </div>
+                      {groupDetail.templates.length === 0 ? (
+                        <p className="text-sm text-gray-500 italic">
+                          No templates yet. Add templates from the right panel.
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {groupDetail.templates
+                            .sort((a, b) => a.start_time.localeCompare(b.start_time))
+                            .map((t) => (
+                              <div
+                                key={t.id}
+                                className="flex items-center justify-between bg-gray-50 rounded p-2"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <Clock className="h-4 w-4 text-gray-400" />
+                                  <span className="text-sm">
+                                    {formatTime(t.start_time)} - {formatTime(t.end_time)}
+                                  </span>
+                                  <span className="text-sm font-medium">
+                                    {t.customer.code}
+                                  </span>
+                                  <span className="text-sm text-gray-500">
+                                    {t.volume.toLocaleString()} L
+                                  </span>
+                                </div>
+                                {canEdit && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleRemoveTemplate(t.id)
+                                    }}
+                                  >
+                                    <X className="h-4 w-4 text-red-500" />
+                                  </Button>
+                                )}
+                              </div>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Right Column - Available Templates */}
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold text-gray-900">
+            Available Templates - {DAYS[selectedDay].label}
+          </h2>
+
+          {templatesLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader size="lg" />
+            </div>
+          ) : availableTemplates.length === 0 ? (
+            <Card>
+              <div className="text-center py-8">
+                <Clock className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">
+                  {dayTemplates.length === 0
+                    ? 'No templates for this day'
+                    : 'All templates assigned'}
+                </h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  {dayTemplates.length === 0
+                    ? `Create weekly templates for ${DAYS[selectedDay].label} first.`
+                    : expandedGroupId
+                    ? 'All templates for this day are already in this group.'
+                    : 'Select a group to manage its templates.'}
+                </p>
+              </div>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">
+                  {expandedGroupId
+                    ? 'Click to add to selected group'
+                    : 'Select a group first'}
+                </CardTitle>
+              </CardHeader>
+              <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                {availableTemplates
+                  .sort((a, b) => a.start_time.localeCompare(b.start_time))
+                  .map((template) => (
+                    <div
+                      key={template.id}
+                      className={`flex items-center justify-between rounded p-3 transition-colors ${
+                        expandedGroupId && canEdit
+                          ? 'bg-gray-50 hover:bg-primary-50 cursor-pointer'
+                          : 'bg-gray-50'
+                      }`}
+                      onClick={() => {
+                        if (expandedGroupId && canEdit) {
+                          handleAddTemplate(template.id)
+                        }
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Clock className="h-4 w-4 text-gray-400" />
+                        <span className="text-sm font-medium">
+                          {formatTime(template.start_time)} - {formatTime(template.end_time)}
+                        </span>
+                        <span className="text-sm font-semibold text-primary-600">
+                          {template.customer.code}
+                        </span>
+                        <span className="text-sm text-gray-500">
+                          {template.customer.name}
+                        </span>
+                        <Badge variant="secondary" className="text-xs">
+                          {template.volume.toLocaleString()} L
+                        </Badge>
+                      </div>
+                      {expandedGroupId && canEdit && (
+                        <ArrowRight className="h-4 w-4 text-primary-500" />
+                      )}
+                    </div>
+                  ))}
+              </div>
+            </Card>
+          )}
+        </div>
+      </div>
 
       {/* Add/Edit Modal */}
       <Modal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={selectedGroup ? 'Edit Trip Group' : 'Add Trip Group'}
+        title={selectedGroup ? 'Edit Trip Group' : `Add Trip Group - ${DAYS[selectedDay].label}`}
       >
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-4">
@@ -341,126 +518,6 @@ export function TripGroups() {
             </Button>
           </ModalFooter>
         </form>
-      </Modal>
-
-      {/* Manage Templates Modal */}
-      <Modal
-        isOpen={templatesModalOpen}
-        onClose={() => {
-          setTemplatesModalOpen(false)
-          setSelectedGroupId(null)
-        }}
-        title={`Manage Templates - ${selectedGroup?.name}`}
-        size="xl"
-      >
-        <div className="space-y-6">
-          {/* Current templates by day */}
-          <div>
-            <h3 className="text-sm font-medium text-gray-900 mb-3">
-              Current Templates ({groupDetail?.template_count || 0})
-            </h3>
-            {Object.keys(templatesByDay).length === 0 ? (
-              <p className="text-sm text-gray-500 italic">No templates assigned</p>
-            ) : (
-              <div className="grid gap-4">
-                {[0, 1, 2, 3, 4, 5, 6].map((day) => {
-                  const dayTemplates = templatesByDay[day]
-                  if (!dayTemplates?.length) return null
-                  return (
-                    <div key={day} className="border rounded-lg p-3">
-                      <div className="text-sm font-medium text-gray-700 mb-2">
-                        {DAY_NAMES[day]}
-                      </div>
-                      <div className="space-y-2">
-                        {dayTemplates.map((t) => (
-                          <div
-                            key={t.id}
-                            className="flex items-center justify-between bg-gray-50 rounded p-2"
-                          >
-                            <div className="flex items-center gap-3">
-                              <Clock className="h-4 w-4 text-gray-400" />
-                              <span className="text-sm">
-                                {t.start_time.slice(0, 5)} - {t.end_time.slice(0, 5)}
-                              </span>
-                              <span className="text-sm font-medium">
-                                {t.customer.code}
-                              </span>
-                              <span className="text-sm text-gray-500">
-                                {t.volume.toLocaleString()} L
-                              </span>
-                            </div>
-                            {canEdit && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRemoveTemplate(t.id)}
-                              >
-                                <Trash2 className="h-4 w-4 text-red-500" />
-                              </Button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Available templates */}
-          {canEdit && availableTemplates.length > 0 && (
-            <div className="border-t pt-4">
-              <h3 className="text-sm font-medium text-gray-900 mb-3">
-                Available Templates ({availableTemplates.length})
-              </h3>
-              <div className="max-h-64 overflow-y-auto space-y-2">
-                {availableTemplates.map((t) => (
-                  <div
-                    key={t.id}
-                    className="flex items-center justify-between bg-gray-50 rounded p-2"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Badge variant="secondary" className="text-xs">
-                        {DAY_NAMES[t.day_of_week]}
-                      </Badge>
-                      <span className="text-sm">
-                        {t.start_time.slice(0, 5)} - {t.end_time.slice(0, 5)}
-                      </span>
-                      <span className="text-sm font-medium">
-                        {t.customer.code}
-                      </span>
-                      <span className="text-sm text-gray-500">
-                        {t.volume.toLocaleString()} L
-                      </span>
-                    </div>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => handleAddTemplate(t.id)}
-                      disabled={addTemplatesMutation.isPending}
-                    >
-                      <Plus className="h-4 w-4" />
-                      Add
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <ModalFooter>
-          <Button
-            variant="secondary"
-            onClick={() => {
-              setTemplatesModalOpen(false)
-              setSelectedGroupId(null)
-            }}
-          >
-            Close
-          </Button>
-        </ModalFooter>
       </Modal>
 
       {/* Delete Confirmation */}

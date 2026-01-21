@@ -26,13 +26,16 @@ def upgrade() -> None:
         'trip_groups',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('name', sa.String(100), nullable=False),
+        sa.Column('day_of_week', sa.Integer(), nullable=False),  # 0=Saturday, 6=Friday
         sa.Column('description', sa.Text(), nullable=True),
         sa.Column('is_active', sa.Boolean(), nullable=False, server_default='true'),
         sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.PrimaryKeyConstraint('id'),
+        sa.CheckConstraint('day_of_week >= 0 AND day_of_week <= 6', name='valid_day'),
     )
     op.create_index('ix_trip_groups_id', 'trip_groups', ['id'])
+    op.create_index('ix_trip_groups_day_of_week', 'trip_groups', ['day_of_week'])
     op.create_index('ix_trip_groups_is_active', 'trip_groups', ['is_active'])
 
     # Create trip_group_templates association table (many-to-many)
@@ -73,5 +76,6 @@ def downgrade() -> None:
     op.drop_table('weekly_driver_assignments')
     op.drop_table('trip_group_templates')
     op.drop_index('ix_trip_groups_is_active', table_name='trip_groups')
+    op.drop_index('ix_trip_groups_day_of_week', table_name='trip_groups')
     op.drop_index('ix_trip_groups_id', table_name='trip_groups')
     op.drop_table('trip_groups')

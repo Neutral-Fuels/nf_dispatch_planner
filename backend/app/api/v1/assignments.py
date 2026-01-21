@@ -79,7 +79,13 @@ def get_weekly_assignments(
         week_start_date=actual_week_start,
         assignments=assignments,
         unassigned_groups=[
-            TripGroupBasicResponse(id=g.id, name=g.name, description=g.description)
+            TripGroupBasicResponse(
+                id=g.id,
+                name=g.name,
+                day_of_week=g.day_of_week,
+                day_name=g.day_name,
+                description=g.description
+            )
             for g in unassigned_groups
         ],
         available_drivers=[

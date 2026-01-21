@@ -115,6 +115,8 @@ class AutoAssignmentService:
                             trip_group=TripGroupBasicResponse(
                                 id=group.id,
                                 name=group.name,
+                                day_of_week=group.day_of_week,
+                                day_name=group.day_name,
                                 description=group.description,
                             ),
                             driver=DriverBasicResponse(id=driver.id, name=driver.name),
@@ -137,6 +139,8 @@ class AutoAssignmentService:
                         trip_group=TripGroupBasicResponse(
                             id=group.id,
                             name=group.name,
+                            day_of_week=group.day_of_week,
+                            day_name=group.day_name,
                             description=group.description,
                         ),
                         driver=None,

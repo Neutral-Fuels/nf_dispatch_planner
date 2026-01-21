@@ -176,6 +176,8 @@ export interface TemplateBasic {
 export interface TripGroup {
   id: number
   name: string
+  day_of_week: number
+  day_name: string
   description: string | null
   is_active: boolean
   templates: TemplateBasic[]
@@ -187,6 +189,8 @@ export interface TripGroup {
 export interface TripGroupListItem {
   id: number
   name: string
+  day_of_week: number
+  day_name: string
   description: string | null
   is_active: boolean
   template_count: number
@@ -196,6 +200,8 @@ export interface TripGroupListItem {
 export interface TripGroupBasic {
   id: number
   name: string
+  day_of_week: number
+  day_name: string
   description: string | null
 }
 

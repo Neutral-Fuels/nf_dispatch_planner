@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Column,
     Date,
     DateTime,
@@ -45,12 +46,29 @@ trip_group_templates = Table(
 
 
 class TripGroup(Base):
-    """Group of weekly templates that form a route/shift."""
+    """Group of weekly templates that form a route/shift for a specific day."""
 
     __tablename__ = "trip_groups"
+    __table_args__ = (
+        CheckConstraint("day_of_week >= 0 AND day_of_week <= 6", name="valid_day"),
+    )
+
+    # Day name mapping (UAE week starts Saturday)
+    DAY_NAMES = [
+        "Saturday",
+        "Sunday",
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+    ]
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
+    day_of_week: Mapped[int] = mapped_column(
+        Integer, nullable=False, index=True
+    )  # 0=Saturday, 6=Friday
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -70,8 +88,13 @@ class TripGroup(Base):
         cascade="all, delete-orphan",
     )
 
+    @property
+    def day_name(self) -> str:
+        """Get human-readable day name."""
+        return self.DAY_NAMES[self.day_of_week]
+
     def __repr__(self) -> str:
-        return f"<TripGroup {self.name}>"
+        return f"<TripGroup {self.name} on {self.day_name}>"
 
 
 class WeeklyDriverAssignment(Base):

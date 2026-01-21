@@ -29,6 +29,7 @@ def list_trip_groups(
     per_page: int = Query(50, ge=1, le=100),
     is_active: Optional[bool] = True,
     search: Optional[str] = None,
+    day_of_week: Optional[int] = Query(None, ge=0, le=6, description="Filter by day (0=Saturday, 6=Friday)"),
 ):
     """
     List all trip groups with pagination and filtering.
@@ -37,6 +38,7 @@ def list_trip_groups(
     - **per_page**: Items per page (default: 50, max: 100)
     - **is_active**: Filter by active status (default: True)
     - **search**: Search by name
+    - **day_of_week**: Filter by day of week (0=Saturday to 6=Friday)
     """
     query = db.query(TripGroup)
 
@@ -45,13 +47,15 @@ def list_trip_groups(
         query = query.filter(TripGroup.is_active == is_active)
     if search:
         query = query.filter(TripGroup.name.ilike(f"%{search}%"))
+    if day_of_week is not None:
+        query = query.filter(TripGroup.day_of_week == day_of_week)
 
     # Get total count
     total = query.count()
 
-    # Paginate and order by name
+    # Paginate and order by day_of_week, then name
     groups = (
-        query.order_by(TripGroup.name)
+        query.order_by(TripGroup.day_of_week, TripGroup.name)
         .offset((page - 1) * per_page)
         .limit(per_page)
         .all()
@@ -64,6 +68,8 @@ def list_trip_groups(
             TripGroupListResponse(
                 id=group.id,
                 name=group.name,
+                day_of_week=group.day_of_week,
+                day_name=group.day_name,
                 description=group.description,
                 is_active=group.is_active,
                 template_count=len(group.templates),
@@ -86,22 +92,29 @@ def create_trip_group(
     db: DbSession,
     editor: EditorUser,
 ):
-    """Create a new trip group with optional templates."""
+    """Create a new trip group for a specific day with optional templates."""
     # Create the group
     group = TripGroup(
         name=group_data.name,
+        day_of_week=group_data.day_of_week,
         description=group_data.description,
     )
     db.add(group)
     db.flush()
 
-    # Add templates if provided
+    # Add templates if provided (must be for the same day)
     if group_data.template_ids:
         templates = (
             db.query(WeeklyTemplate)
             .filter(WeeklyTemplate.id.in_(group_data.template_ids))
+            .filter(WeeklyTemplate.day_of_week == group_data.day_of_week)
             .all()
         )
+        if len(templates) != len(group_data.template_ids):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Some templates are not valid for {group.day_name}",
+            )
         group.templates = templates
 
     db.commit()
@@ -110,6 +123,8 @@ def create_trip_group(
     return TripGroupResponse(
         id=group.id,
         name=group.name,
+        day_of_week=group.day_of_week,
+        day_name=group.day_name,
         description=group.description,
         is_active=group.is_active,
         templates=group.templates,
@@ -136,6 +151,8 @@ def get_trip_group(
     return TripGroupResponse(
         id=group.id,
         name=group.name,
+        day_of_week=group.day_of_week,
+        day_name=group.day_name,
         description=group.description,
         is_active=group.is_active,
         templates=group.templates,
@@ -152,7 +169,7 @@ def update_trip_group(
     db: DbSession,
     editor: EditorUser,
 ):
-    """Update a trip group."""
+    """Update a trip group (note: day_of_week cannot be changed)."""
     group = db.query(TripGroup).filter(TripGroup.id == group_id).first()
     if not group:
         raise HTTPException(
@@ -163,14 +180,20 @@ def update_trip_group(
     # Update fields
     update_data = group_data.model_dump(exclude_unset=True)
 
-    # Handle template_ids separately
+    # Handle template_ids separately (must be for same day)
     template_ids = update_data.pop("template_ids", None)
     if template_ids is not None:
         templates = (
             db.query(WeeklyTemplate)
             .filter(WeeklyTemplate.id.in_(template_ids))
+            .filter(WeeklyTemplate.day_of_week == group.day_of_week)
             .all()
         )
+        if len(templates) != len(template_ids):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Some templates are not valid for {group.day_name}",
+            )
         group.templates = templates
 
     # Update other fields
@@ -183,6 +206,8 @@ def update_trip_group(
     return TripGroupResponse(
         id=group.id,
         name=group.name,
+        day_of_week=group.day_of_week,
+        day_name=group.day_name,
         description=group.description,
         is_active=group.is_active,
         templates=group.templates,
@@ -217,7 +242,7 @@ def add_templates_to_group(
     db: DbSession,
     editor: EditorUser,
 ):
-    """Add templates to a trip group."""
+    """Add templates to a trip group (templates must be for the same day)."""
     group = db.query(TripGroup).filter(TripGroup.id == group_id).first()
     if not group:
         raise HTTPException(
@@ -228,13 +253,23 @@ def add_templates_to_group(
     # Get existing template IDs
     existing_ids = {t.id for t in group.templates}
 
-    # Get new templates
+    # Get new templates (must be for the same day as the group)
     new_templates = (
         db.query(WeeklyTemplate)
         .filter(WeeklyTemplate.id.in_(request.template_ids))
+        .filter(WeeklyTemplate.day_of_week == group.day_of_week)
         .filter(~WeeklyTemplate.id.in_(existing_ids))
         .all()
     )
+
+    # Validate all requested templates were found and are for the right day
+    found_ids = {t.id for t in new_templates}
+    requested_new_ids = set(request.template_ids) - existing_ids
+    if found_ids != requested_new_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Some templates are not valid for {group.day_name}",
+        )
 
     # Add to group
     group.templates.extend(new_templates)
@@ -244,6 +279,8 @@ def add_templates_to_group(
     return TripGroupResponse(
         id=group.id,
         name=group.name,
+        day_of_week=group.day_of_week,
+        day_name=group.day_name,
         description=group.description,
         is_active=group.is_active,
         templates=group.templates,
@@ -276,6 +313,8 @@ def remove_template_from_group(
     return TripGroupResponse(
         id=group.id,
         name=group.name,
+        day_of_week=group.day_of_week,
+        day_name=group.day_name,
         description=group.description,
         is_active=group.is_active,
         templates=group.templates,
@@ -309,6 +348,8 @@ def remove_templates_from_group(
     return TripGroupResponse(
         id=group.id,
         name=group.name,
+        day_of_week=group.day_of_week,
+        day_name=group.day_name,
         description=group.description,
         is_active=group.is_active,
         templates=group.templates,

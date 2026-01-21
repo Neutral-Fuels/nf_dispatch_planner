@@ -69,6 +69,7 @@ class TripGroupBase(BaseModel):
     """Base trip group schema."""
 
     name: str = Field(..., min_length=1, max_length=100)
+    day_of_week: int = Field(..., ge=0, le=6)  # 0=Saturday, 6=Friday
     description: Optional[str] = None
 
 
@@ -92,6 +93,8 @@ class TripGroupResponse(BaseModel):
 
     id: int
     name: str
+    day_of_week: int
+    day_name: str
     description: Optional[str]
     is_active: bool
     templates: list[TemplateBasicResponse]
@@ -108,6 +111,8 @@ class TripGroupResponse(BaseModel):
         data = {
             "id": obj.id,
             "name": obj.name,
+            "day_of_week": obj.day_of_week,
+            "day_name": obj.day_name,
             "description": obj.description,
             "is_active": obj.is_active,
             "templates": obj.templates,
@@ -123,6 +128,8 @@ class TripGroupListResponse(BaseModel):
 
     id: int
     name: str
+    day_of_week: int
+    day_name: str
     description: Optional[str]
     is_active: bool
     template_count: int
@@ -182,6 +189,8 @@ class TripGroupBasicResponse(BaseModel):
 
     id: int
     name: str
+    day_of_week: int
+    day_name: str
     description: Optional[str]
 
     class Config:
