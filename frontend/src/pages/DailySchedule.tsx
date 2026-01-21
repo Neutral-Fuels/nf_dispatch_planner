@@ -12,17 +12,14 @@ import {
   Lock,
   Unlock,
   AlertTriangle,
-  Clock,
   Truck,
   User,
   Droplet,
-  Edit2,
   Plus,
   Users,
 } from 'lucide-react'
 import { Card } from '../components/common/Card'
 import { Button } from '../components/common/Button'
-import { Badge } from '../components/common/Badge'
 import { Select } from '../components/common/Select'
 import { Input } from '../components/common/Input'
 import { Modal, ModalFooter } from '../components/common/Modal'
@@ -38,9 +35,9 @@ import {
 import { useTankers, useCompatibleTankers } from '../hooks/useTankers'
 import { useDrivers } from '../hooks/useDrivers'
 import { useCustomers } from '../hooks/useCustomers'
-import { useFuelBlends } from '../hooks/useReferenceData'
+import { useFuelBlends } from '../hooks/useReference'
 import { toast } from '../store/toastStore'
-import { Trip, TripStatus, TripGroupScheduleItem } from '../types/api'
+import { Trip, TripGroupScheduleItem } from '../types/api'
 import { formatTime, formatVolume } from '../utils/formatters'
 import { useAuth } from '../hooks/useAuth'
 
@@ -136,7 +133,6 @@ export function DailySchedule() {
     handleSubmit: handleSubmitOnDemand,
     control: controlOnDemand,
     reset: resetOnDemand,
-    watch: watchOnDemand,
     formState: { errors: errorsOnDemand },
   } = useForm<OnDemandFormData>({
     resolver: zodResolver(onDemandSchema),
@@ -162,7 +158,7 @@ export function DailySchedule() {
   const fuelBlendOptions = useMemo(() => {
     return [
       { value: 0, label: 'Default (from customer)' },
-      ...(fuelBlendsData || []).map((b) => ({
+      ...(fuelBlendsData || []).map((b: { id: number; code: string; name: string }) => ({
         value: b.id,
         label: `${b.code} - ${b.name}`,
       })),
@@ -200,15 +196,6 @@ export function DailySchedule() {
       })),
     ]
   }, [driversData])
-
-  // Status badge variants
-  const statusVariants: Record<TripStatus, 'success' | 'warning' | 'danger' | 'secondary' | 'info'> = {
-    scheduled: 'info',
-    unassigned: 'warning',
-    conflict: 'danger',
-    completed: 'success',
-    cancelled: 'secondary',
-  }
 
   // Navigation handlers
   const goToPreviousDay = () => {
@@ -501,7 +488,6 @@ export function DailySchedule() {
                 onTripClick={handleTripClick}
                 isLocked={scheduleData.is_locked}
                 canEdit={canEdit}
-                statusVariants={statusVariants}
               />
             ))}
 
@@ -762,7 +748,6 @@ interface TripGroupRowProps {
   onTripClick: (trip: Trip) => void
   isLocked: boolean
   canEdit: boolean
-  statusVariants: Record<TripStatus, 'success' | 'warning' | 'danger' | 'secondary' | 'info'>
 }
 
 function TripGroupRow({
@@ -771,7 +756,6 @@ function TripGroupRow({
   onTripClick,
   isLocked,
   canEdit,
-  statusVariants,
 }: TripGroupRowProps) {
   // Calculate group bar position
   const groupPosition = group.earliest_start_time && group.latest_end_time
