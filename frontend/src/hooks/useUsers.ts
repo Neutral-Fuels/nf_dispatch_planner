@@ -18,6 +18,7 @@ export interface UserListParams {
   is_active?: boolean
   page?: number
   per_page?: number
+  [key: string]: unknown
 }
 
 export interface CreateUserRequest {

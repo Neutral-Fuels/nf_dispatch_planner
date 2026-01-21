@@ -1,4 +1,4 @@
-import { forwardRef, SelectHTMLAttributes } from 'react'
+import { forwardRef, SelectHTMLAttributes, ChangeEvent } from 'react'
 import { cn } from '../../utils/cn'
 
 export interface SelectOption {
@@ -7,12 +7,11 @@ export interface SelectOption {
   disabled?: boolean
 }
 
-interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'onChange'> {
+export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string
   error?: string
   options: SelectOption[]
   placeholder?: string
-  onChange?: (value: string) => void
 }
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
@@ -34,7 +33,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             error && 'border-red-500 focus:border-red-500 focus:ring-red-500',
             className
           )}
-          onChange={(e) => onChange?.(e.target.value)}
+          onChange={onChange}
           {...props}
         >
           {placeholder && (

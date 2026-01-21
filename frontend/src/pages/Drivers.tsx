@@ -61,7 +61,6 @@ export function Drivers() {
     register,
     handleSubmit,
     reset,
-    setValue,
     formState: { errors },
   } = useForm<DriverFormData>({
     resolver: zodResolver(driverSchema),

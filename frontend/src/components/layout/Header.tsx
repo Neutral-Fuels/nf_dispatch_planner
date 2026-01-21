@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { LogOut, User, ChevronDown } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { authService } from '../../services/auth'
-import { cn } from '../../utils/formatters'
 
 export function Header() {
   const [showDropdown, setShowDropdown] = useState(false)

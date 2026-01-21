@@ -23,19 +23,20 @@ export const useToastStore = create<ToastState>((set) => ({
 
   addToast: (toast) => {
     const id = String(++toastId)
-    const newToast: Toast = { ...toast, id, duration: toast.duration ?? 5000 }
+    const duration = toast.duration ?? 5000
+    const newToast: Toast = { ...toast, id, duration }
 
     set((state) => ({
       toasts: [...state.toasts, newToast],
     }))
 
     // Auto-remove after duration
-    if (newToast.duration > 0) {
+    if (duration > 0) {
       setTimeout(() => {
         set((state) => ({
           toasts: state.toasts.filter((t) => t.id !== id),
         }))
-      }, newToast.duration)
+      }, duration)
     }
   },
 

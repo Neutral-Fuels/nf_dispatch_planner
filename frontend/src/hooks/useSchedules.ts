@@ -120,7 +120,7 @@ export function useCreateTemplate() {
 
   return useMutation({
     mutationFn: createTemplate,
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: scheduleKeys.templates() })
     },
   })
@@ -131,7 +131,7 @@ export function useUpdateTemplate() {
 
   return useMutation({
     mutationFn: updateTemplate,
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: scheduleKeys.templates() })
     },
   })
@@ -161,7 +161,7 @@ export function useGenerateSchedule() {
 
   return useMutation({
     mutationFn: generateSchedule,
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: scheduleKeys.daily() })
     },
   })
@@ -172,7 +172,7 @@ export function useLockSchedule() {
 
   return useMutation({
     mutationFn: lockSchedule,
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: scheduleKeys.daily() })
     },
   })
@@ -183,7 +183,7 @@ export function useUnlockSchedule() {
 
   return useMutation({
     mutationFn: unlockSchedule,
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: scheduleKeys.daily() })
     },
   })

@@ -12,7 +12,6 @@ import {
   Lock,
   Unlock,
   AlertTriangle,
-  CheckCircle,
   Clock,
   Truck,
   User,

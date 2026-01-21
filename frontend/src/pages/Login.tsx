@@ -91,7 +91,7 @@ export function Login() {
             <Button
               type="submit"
               className="w-full"
-              loading={isLoading}
+              isLoading={isLoading}
             >
               Sign in
             </Button>

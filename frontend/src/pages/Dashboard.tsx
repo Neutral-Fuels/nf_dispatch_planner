@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { format, startOfWeek, subWeeks } from 'date-fns'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -57,11 +56,11 @@ export function Dashboard() {
   const weekStart = format(startOfWeek(subWeeks(new Date(), 1), { weekStartsOn: 6 }), 'yyyy-MM-dd')
 
   // Fetch data
-  const { data: summary, isLoading: summaryLoading } = useDashboardSummary(today)
+  const { data: summary } = useDashboardSummary(today)
   const { data: alerts, isLoading: alertsLoading } = useAlerts()
-  const { data: tankerUtilization, isLoading: utilizationLoading } = useTankerUtilization(today)
-  const { data: driverStatus, isLoading: driverStatusLoading } = useDriverStatusSummary(today)
-  const { data: weeklyTrend, isLoading: trendLoading } = useWeeklyTrend(weekStart)
+  const { data: tankerUtilization } = useTankerUtilization(today)
+  const { data: driverStatus } = useDriverStatusSummary(today)
+  const { data: weeklyTrend } = useWeeklyTrend(weekStart)
 
   const formattedDate = format(new Date(), 'EEEE, d MMMM yyyy')
 
