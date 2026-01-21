@@ -4,6 +4,7 @@ import { useAuthStore } from './store/authStore'
 import { AppLayout } from './components/layout/AppLayout'
 import { ProtectedRoute } from './components/layout/ProtectedRoute'
 import { ToastContainer } from './components/common/Toast'
+import { ErrorBoundary } from './components/common/ErrorBoundary'
 import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
 import { Drivers } from './pages/Drivers'
@@ -14,6 +15,7 @@ import { WeeklyTemplates } from './pages/WeeklyTemplates'
 import { DriverSchedule } from './pages/DriverSchedule'
 import { DriverTripSheet } from './pages/DriverTripSheet'
 import { Users } from './pages/Users'
+import { Settings } from './pages/Settings'
 
 // Create a client
 const queryClient = new QueryClient({
@@ -30,9 +32,10 @@ function App() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <Routes>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <Routes>
           {/* Public routes */}
           <Route
             path="/login"
@@ -56,6 +59,7 @@ function App() {
             <Route path="/tankers" element={<Tankers />} />
             <Route path="/customers" element={<Customers />} />
             <Route path="/users" element={<Users />} />
+            <Route path="/settings" element={<Settings />} />
           </Route>
 
           {/* Fallback route */}
@@ -63,9 +67,10 @@ function App() {
         </Routes>
 
         {/* Toast notifications */}
-        <ToastContainer />
-      </BrowserRouter>
-    </QueryClientProvider>
+          <ToastContainer />
+        </BrowserRouter>
+      </QueryClientProvider>
+    </ErrorBoundary>
   )
 }
 

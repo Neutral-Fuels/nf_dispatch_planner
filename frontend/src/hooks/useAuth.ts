@@ -7,6 +7,7 @@ export function useAuth() {
   const user = useAuthStore((state) => state.user)
   const token = useAuthStore((state) => state.token)
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+  const updateUser = useAuthStore((state) => state.updateUser)
   const logout = useAuthStore((state) => state.logout)
 
   const isAdmin = user?.role === 'admin'
@@ -22,6 +23,7 @@ export function useAuth() {
     isDispatcher,
     isViewer,
     canEdit,
+    updateUser,
     logout,
   }
 }
