@@ -62,3 +62,9 @@ class UsersListResponse(BaseModel):
     page: int
     per_page: int
     pages: int
+
+
+class AdminPasswordReset(BaseModel):
+    """Admin password reset schema (no current password required)."""
+
+    new_password: str = Field(..., min_length=8, max_length=100)

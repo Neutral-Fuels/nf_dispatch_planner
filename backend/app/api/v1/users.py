@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from app.api.deps import AdminUser, DbSession
 from app.models.user import User, UserRole
 from app.schemas.user import (
+    AdminPasswordReset,
     UserCreate,
     UserResponse,
     UsersListResponse,
@@ -198,3 +199,56 @@ def deactivate_user(
 
     user.is_active = False
     db.commit()
+
+
+@router.post("/{user_id}/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+def reset_user_password(
+    user_id: int,
+    password_data: AdminPasswordReset,
+    db: DbSession,
+    admin: AdminUser,
+):
+    """
+    Reset a user's password (Admin only).
+
+    This allows admins to set a new password for any user without
+    knowing their current password.
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    user.password_hash = AuthService.hash_password(password_data.new_password)
+    db.commit()
+
+
+@router.post("/{user_id}/activate", response_model=UserResponse)
+def activate_user(
+    user_id: int,
+    db: DbSession,
+    admin: AdminUser,
+):
+    """
+    Reactivate a deactivated user (Admin only).
+    """
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    if user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is already active",
+        )
+
+    user.is_active = True
+    db.commit()
+    db.refresh(user)
+
+    return user

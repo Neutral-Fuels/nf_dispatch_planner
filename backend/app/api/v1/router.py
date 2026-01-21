@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from app.api.v1 import auth, users, reference, drivers, tankers, customers, templates, schedules
+from app.api.v1 import auth, users, reference, drivers, tankers, customers, templates, schedules, dashboard
 
 api_router = APIRouter()
 
@@ -15,3 +15,4 @@ api_router.include_router(tankers.router, prefix="/tankers", tags=["Tankers"])
 api_router.include_router(customers.router, prefix="/customers", tags=["Customers"])
 api_router.include_router(templates.router, prefix="/templates", tags=["Weekly Templates"])
 api_router.include_router(schedules.router, prefix="/schedules", tags=["Schedules"])
+api_router.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])

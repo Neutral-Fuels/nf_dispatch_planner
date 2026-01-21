@@ -5,7 +5,10 @@ from datetime import date, datetime
 from fastapi import APIRouter, HTTPException, Path, status
 
 from app.api.deps import CurrentUser, DbSession, EditorUser
+from app.models.customer import Customer
 from app.models.schedule import DailySchedule, Trip, TripStatus, WeeklyTemplate
+from app.models.tanker import Tanker
+from app.services.validation import TripValidationService, ValidationResult
 from app.schemas.schedule import (
     DailyScheduleResponse,
     GenerateScheduleRequest,
@@ -359,9 +362,44 @@ def assign_trip(
             detail="Schedule is locked",
         )
 
-    # TODO: Add tanker validation (capacity, blend, emirate, delivery type)
-
+    # Validate tanker assignment
     if assignment.tanker_id is not None:
+        tanker = db.query(Tanker).filter(Tanker.id == assignment.tanker_id).first()
+        if not tanker:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Tanker not found",
+            )
+
+        customer = db.query(Customer).filter(Customer.id == trip.customer_id).first()
+
+        # Run validation
+        validation_service = TripValidationService(db)
+        result = validation_service.validate_tanker_assignment(trip, tanker, customer)
+
+        if not result.is_valid:
+            error_messages = [f"{e.code}: {e.message}" for e in result.errors]
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"validation_errors": error_messages},
+            )
+
+        # Check for conflicts
+        conflicts = validation_service.check_trip_conflicts(
+            tanker_id=assignment.tanker_id,
+            schedule_date=trip.daily_schedule.schedule_date,
+            start_time=trip.start_time,
+            end_time=trip.end_time,
+            exclude_trip_id=trip_id,
+        )
+
+        if conflicts:
+            conflict_times = [f"{c.start_time}-{c.end_time}" for c in conflicts]
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Tanker has conflicting trips at: {', '.join(conflict_times)}",
+            )
+
         trip.tanker_id = assignment.tanker_id
         trip.status = TripStatus.SCHEDULED
 
@@ -372,6 +410,41 @@ def assign_trip(
     db.refresh(trip)
 
     return trip
+
+
+@router.get("/trips/{trip_id}/compatible-tankers")
+def get_compatible_tankers(
+    trip_id: int,
+    db: DbSession,
+    current_user: CurrentUser,
+):
+    """Get list of tankers compatible with trip requirements."""
+    trip = db.query(Trip).filter(Trip.id == trip_id).first()
+    if not trip:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Trip not found",
+        )
+
+    customer = db.query(Customer).filter(Customer.id == trip.customer_id).first()
+
+    validation_service = TripValidationService(db)
+    tankers = validation_service.get_compatible_tankers(
+        customer=customer,
+        fuel_blend_id=trip.fuel_blend_id,
+        volume=trip.volume,
+    )
+
+    return [
+        {
+            "id": t.id,
+            "name": t.name,
+            "max_capacity": t.max_capacity,
+            "delivery_type": t.delivery_type.value,
+            "status": t.status.value,
+        }
+        for t in tankers
+    ]
 
 
 @router.delete("/trips/{trip_id}", status_code=status.HTTP_204_NO_CONTENT)
