@@ -9,7 +9,7 @@ export const tankerKeys = {
   list: (params: TankerQueryParams) => [...tankerKeys.lists(), params] as const,
   details: () => [...tankerKeys.all, 'detail'] as const,
   detail: (id: number) => [...tankerKeys.details(), id] as const,
-  compatible: (customerId: number) => [...tankerKeys.all, 'compatible', customerId] as const,
+  compatible: (tripId: number) => [...tankerKeys.all, 'compatible', tripId] as const,
 }
 
 // Types
@@ -52,8 +52,8 @@ const fetchTanker = async (id: number): Promise<Tanker> => {
   return data
 }
 
-const fetchCompatibleTankers = async (customerId: number): Promise<Tanker[]> => {
-  const { data } = await api.get(`/tankers/compatible/${customerId}`)
+const fetchCompatibleTankers = async (tripId: number): Promise<Tanker[]> => {
+  const { data } = await api.get(`/schedules/trips/${tripId}/compatible-tankers`)
   return data
 }
 
@@ -87,11 +87,11 @@ export function useTanker(id: number) {
   })
 }
 
-export function useCompatibleTankers(customerId: number) {
+export function useCompatibleTankers(tripId: number) {
   return useQuery({
-    queryKey: tankerKeys.compatible(customerId),
-    queryFn: () => fetchCompatibleTankers(customerId),
-    enabled: !!customerId,
+    queryKey: tankerKeys.compatible(tripId),
+    queryFn: () => fetchCompatibleTankers(tripId),
+    enabled: !!tripId,
   })
 }
 

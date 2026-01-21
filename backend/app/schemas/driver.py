@@ -91,7 +91,6 @@ class DriverScheduleResponse(BaseModel):
 class DriverScheduleBulkCreate(BaseModel):
     """Bulk driver schedule creation schema."""
 
-    driver_id: int
     start_date: date
     end_date: date
     pattern: list[DriverStatus]  # 7 statuses for each day of week
