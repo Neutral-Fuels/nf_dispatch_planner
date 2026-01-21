@@ -63,28 +63,28 @@ export interface DailyTrend {
 
 // API functions
 const fetchDashboardSummary = async (date: string): Promise<DashboardSummary> => {
-  const { data } = await api.get(`/dashboard/summary/${date}`)
+  const { data } = await api.get('/dashboard/summary', { params: { summary_date: date } })
   return data
 }
 
 const fetchAlerts = async (): Promise<Alert[]> => {
   const { data } = await api.get('/dashboard/alerts')
-  return data
+  return data.alerts || data
 }
 
 const fetchTankerUtilization = async (date: string): Promise<TankerUtilization[]> => {
-  const { data } = await api.get(`/dashboard/tanker-utilization/${date}`)
-  return data
+  const { data } = await api.get('/dashboard/tanker-utilization', { params: { summary_date: date } })
+  return data.tankers || data
 }
 
 const fetchDriverStatus = async (date: string): Promise<DriverStatusSummary[]> => {
-  const { data } = await api.get(`/dashboard/driver-status/${date}`)
+  const { data } = await api.get('/dashboard/driver-status', { params: { summary_date: date } })
   return data
 }
 
 const fetchWeeklyTrend = async (startDate: string): Promise<DailyTrend[]> => {
-  const { data } = await api.get(`/dashboard/weekly-trend/${startDate}`)
-  return data
+  const { data } = await api.get('/dashboard/weekly-overview', { params: { start_date: startDate } })
+  return data.days || data
 }
 
 // Hooks

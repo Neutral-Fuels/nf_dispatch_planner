@@ -87,26 +87,90 @@ export interface DriverTripSheet {
   }
 }
 
+// Helper to get date range for a month
+const getMonthDateRange = (year: number, month: number) => {
+  const startDate = new Date(year, month - 1, 1)
+  const endDate = new Date(year, month, 0) // Last day of month
+  return {
+    start_date: startDate.toISOString().split('T')[0],
+    end_date: endDate.toISOString().split('T')[0],
+  }
+}
+
 // API functions
 const fetchDriverMonthlySchedule = async (
   driverId: number,
   year: number,
   month: number
 ): Promise<DriverMonthlySchedule> => {
-  const { data } = await api.get(`/drivers/${driverId}/schedule/${year}/${month}`)
-  return data
+  const { start_date, end_date } = getMonthDateRange(year, month)
+  const { data } = await api.get(`/drivers/${driverId}/schedule`, {
+    params: { start_date, end_date }
+  })
+
+  // Transform backend response to expected format
+  return {
+    driver_id: driverId,
+    driver_name: '',
+    year,
+    month,
+    days: Array.isArray(data) ? data.map((s: { schedule_date: string; status: string; notes?: string }) => ({
+      date: s.schedule_date,
+      status: s.status as DriverStatus,
+      trips_count: 0,
+      total_volume: 0,
+    })) : [],
+    summary: {
+      working_days: 0,
+      off_days: 0,
+      holiday_days: 0,
+      float_days: 0,
+      total_trips: 0,
+      total_volume: 0,
+    },
+  }
 }
 
 const fetchAllDriversMonthlySchedule = async (
   year: number,
   month: number
 ): Promise<AllDriversMonthlySchedule> => {
-  const { data } = await api.get(`/drivers/schedule/${year}/${month}`)
-  return data
+  const { start_date, end_date } = getMonthDateRange(year, month)
+  const { data } = await api.get('/drivers/schedules/all', {
+    params: { start_date, end_date }
+  })
+
+  // Transform backend response to expected format
+  const drivers: DriverMonthlySchedule[] = Object.entries(data).map(([driverId, driverData]: [string, unknown]) => {
+    const typedData = driverData as { driver_name: string; driver_type: string; schedules: Array<{ date: string; status: string; notes?: string }> }
+    return {
+      driver_id: parseInt(driverId),
+      driver_name: typedData.driver_name,
+      year,
+      month,
+      days: typedData.schedules.map((s) => ({
+        date: s.date,
+        status: s.status as DriverStatus,
+        trips_count: 0,
+        total_volume: 0,
+      })),
+      summary: {
+        working_days: typedData.schedules.filter((s) => s.status === 'working').length,
+        off_days: typedData.schedules.filter((s) => s.status === 'off').length,
+        holiday_days: typedData.schedules.filter((s) => s.status === 'holiday').length,
+        float_days: typedData.schedules.filter((s) => s.status === 'float').length,
+        total_trips: 0,
+        total_volume: 0,
+      },
+    }
+  })
+
+  return { year, month, drivers }
 }
 
 const updateDriverDayStatus = async (request: UpdateDriverDayRequest): Promise<void> => {
-  await api.put(`/drivers/${request.driver_id}/schedule/${request.date}`, {
+  await api.post(`/drivers/${request.driver_id}/schedule`, {
+    date: request.date,
     status: request.status,
   })
 }
@@ -114,9 +178,14 @@ const updateDriverDayStatus = async (request: UpdateDriverDayRequest): Promise<v
 const bulkUpdateDriverSchedule = async (
   request: BulkUpdateDriverScheduleRequest
 ): Promise<void> => {
+  // Backend expects start_date, end_date, and pattern - adapting the request
+  const dates = request.dates.sort()
+  if (dates.length === 0) return
+
   await api.post(`/drivers/${request.driver_id}/schedule/bulk`, {
-    dates: request.dates,
-    status: request.status,
+    start_date: dates[0],
+    end_date: dates[dates.length - 1],
+    pattern: [request.status, request.status, request.status, request.status, request.status, request.status, request.status],
   })
 }
 
@@ -124,8 +193,40 @@ const fetchDriverTripSheet = async (
   driverId: number,
   date: string
 ): Promise<DriverTripSheet> => {
-  const { data } = await api.get(`/drivers/${driverId}/trip-sheet/${date}`)
-  return data
+  const { data } = await api.get(`/drivers/${driverId}/trips`, {
+    params: { schedule_date: date }
+  })
+
+  // Transform to expected format
+  return {
+    driver_id: data.driver.id,
+    driver_name: data.driver.name,
+    driver_license: null,
+    driver_phone: null,
+    date: data.date,
+    status: 'working' as DriverStatus,
+    trips: data.trips.map((t: { id: number; customer: { code: string; name: string; address: string | null }; tanker: { name: string; max_capacity?: number } | null; fuel_blend: string | null; start_time: string; end_time: string; volume: number; status?: string; notes?: string | null }, idx: number) => ({
+      id: t.id,
+      sequence: idx + 1,
+      customer_name: t.customer.name,
+      customer_code: t.customer.code,
+      customer_address: t.customer.address,
+      start_time: t.start_time,
+      end_time: t.end_time,
+      tanker_code: t.tanker?.name || '',
+      tanker_capacity: t.tanker?.max_capacity || 0,
+      fuel_blend: t.fuel_blend || '',
+      volume: t.volume,
+      status: t.status || 'scheduled',
+      notes: t.notes,
+    })),
+    summary: {
+      total_trips: data.total_trips,
+      total_volume: data.total_volume,
+      completed_trips: 0,
+      remaining_trips: data.total_trips,
+    },
+  }
 }
 
 // Hooks
