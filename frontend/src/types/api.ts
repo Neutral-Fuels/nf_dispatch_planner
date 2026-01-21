@@ -258,3 +258,59 @@ export interface AutoAssignResponse {
   unassigned: AutoAssignmentPreview[]
   message: string
 }
+
+// Trip Group Schedule View types
+export interface TripGroupScheduleItem {
+  id: number
+  name: string
+  day_of_week: number
+  day_name: string
+  description: string | null
+  driver: DriverBasic | null
+  trips: Trip[]
+  earliest_start_time: string | null
+  latest_end_time: string | null
+  total_volume: number
+  template_count: number
+}
+
+export interface UnassignedTripsGroup {
+  trips: Trip[]
+  total_volume: number
+}
+
+export interface TripGroupScheduleResponse {
+  id: number | null
+  schedule_date: string
+  day_of_week: number
+  day_name: string
+  is_locked: boolean
+  trip_groups: TripGroupScheduleItem[]
+  unassigned_trips: UnassignedTripsGroup
+  summary: ScheduleSummary
+  notes: string | null
+  created_at: string | null
+}
+
+// On-Demand Delivery types
+export interface OnDemandDeliveryRequest {
+  customer_id: number
+  fuel_blend_id?: number | null
+  volume: number
+  preferred_start_time?: string | null
+  preferred_end_time?: string | null
+  notes?: string | null
+  auto_assign?: boolean
+}
+
+export interface TankerBasic {
+  id: number
+  name: string
+}
+
+export interface OnDemandDeliveryResponse {
+  trip: Trip
+  auto_assigned: boolean
+  assigned_tanker: TankerBasic | null
+  message: string
+}

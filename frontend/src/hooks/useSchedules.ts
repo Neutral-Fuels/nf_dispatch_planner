@@ -1,6 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../services/api'
-import { WeeklyTemplate, DailySchedule, Trip, TripStatus } from '../types/api'
+import {
+  WeeklyTemplate,
+  DailySchedule,
+  Trip,
+  TripStatus,
+  TripGroupScheduleResponse,
+  OnDemandDeliveryRequest,
+  OnDemandDeliveryResponse,
+} from '../types/api'
 
 // Query keys
 export const scheduleKeys = {
@@ -9,6 +17,7 @@ export const scheduleKeys = {
   templatesByDay: (dayOfWeek: number) => [...scheduleKeys.templates(), dayOfWeek] as const,
   daily: () => [...scheduleKeys.all, 'daily'] as const,
   dailyByDate: (date: string) => [...scheduleKeys.daily(), date] as const,
+  dailyGroupsByDate: (date: string) => [...scheduleKeys.daily(), 'groups', date] as const,
   trips: () => [...scheduleKeys.all, 'trips'] as const,
   trip: (id: number) => [...scheduleKeys.trips(), id] as const,
 }
@@ -208,6 +217,40 @@ export function useDeleteTrip() {
 
   return useMutation({
     mutationFn: deleteTrip,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: scheduleKeys.daily() })
+    },
+  })
+}
+
+// Trip Group Schedule API functions
+const fetchScheduleByGroups = async (date: string): Promise<TripGroupScheduleResponse> => {
+  const { data } = await api.get(`/schedules/${date}/groups`)
+  return data
+}
+
+const createOnDemandDelivery = async ({
+  date,
+  ...request
+}: OnDemandDeliveryRequest & { date: string }): Promise<OnDemandDeliveryResponse> => {
+  const { data } = await api.post(`/schedules/${date}/on-demand`, request)
+  return data
+}
+
+// Trip Group Schedule Hooks
+export function useScheduleByGroups(date: string) {
+  return useQuery({
+    queryKey: scheduleKeys.dailyGroupsByDate(date),
+    queryFn: () => fetchScheduleByGroups(date),
+    enabled: !!date,
+  })
+}
+
+export function useCreateOnDemandDelivery() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: createOnDemandDelivery,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: scheduleKeys.daily() })
     },

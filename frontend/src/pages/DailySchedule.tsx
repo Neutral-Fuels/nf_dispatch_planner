@@ -17,6 +17,8 @@ import {
   User,
   Droplet,
   Edit2,
+  Plus,
+  Users,
 } from 'lucide-react'
 import { Card } from '../components/common/Card'
 import { Button } from '../components/common/Button'
@@ -26,16 +28,19 @@ import { Input } from '../components/common/Input'
 import { Modal, ModalFooter } from '../components/common/Modal'
 import { ConfirmDialog } from '../components/common/ConfirmDialog'
 import {
-  useDailySchedule,
+  useScheduleByGroups,
   useGenerateSchedule,
   useLockSchedule,
   useUnlockSchedule,
   useUpdateTrip,
+  useCreateOnDemandDelivery,
 } from '../hooks/useSchedules'
 import { useTankers, useCompatibleTankers } from '../hooks/useTankers'
 import { useDrivers } from '../hooks/useDrivers'
+import { useCustomers } from '../hooks/useCustomers'
+import { useFuelBlends } from '../hooks/useReferenceData'
 import { toast } from '../store/toastStore'
-import { Trip, TripStatus } from '../types/api'
+import { Trip, TripStatus, TripGroupScheduleItem } from '../types/api'
 import { formatTime, formatVolume } from '../utils/formatters'
 import { useAuth } from '../hooks/useAuth'
 
@@ -50,6 +55,19 @@ const tripAssignmentSchema = z.object({
 })
 
 type TripAssignmentFormData = z.infer<typeof tripAssignmentSchema>
+
+// On-demand delivery form schema
+const onDemandSchema = z.object({
+  customer_id: z.coerce.number().min(1, 'Customer is required'),
+  fuel_blend_id: z.coerce.number().nullable().optional(),
+  volume: z.coerce.number().min(1, 'Volume must be at least 1'),
+  preferred_start_time: z.string().optional(),
+  preferred_end_time: z.string().optional(),
+  notes: z.string().nullable().optional(),
+  auto_assign: z.boolean().default(true),
+})
+
+type OnDemandFormData = z.infer<typeof onDemandSchema>
 
 // Time slots for timeline (6 AM to 10 PM)
 const TIME_SLOTS = Array.from({ length: 17 }, (_, i) => {
@@ -79,14 +97,17 @@ export function DailySchedule() {
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null)
   const [assignmentModalOpen, setAssignmentModalOpen] = useState(false)
   const [generateDialogOpen, setGenerateDialogOpen] = useState(false)
+  const [onDemandModalOpen, setOnDemandModalOpen] = useState(false)
 
   // Format date for API
   const dateString = format(selectedDate, 'yyyy-MM-dd')
 
-  // Queries
-  const { data: schedule, isLoading, refetch } = useDailySchedule(dateString)
+  // Queries - use the new group-based endpoint
+  const { data: scheduleData, isLoading, refetch } = useScheduleByGroups(dateString)
   const { data: tankersData } = useTankers({ is_active: true, per_page: 100 })
   const { data: driversData } = useDrivers({ is_active: true, per_page: 100 })
+  const { data: customersData } = useCustomers({ is_active: true, per_page: 100 })
+  const { data: fuelBlendsData } = useFuelBlends()
   const { data: compatibleTankers } = useCompatibleTankers(
     selectedTrip?.customer?.id || 0
   )
@@ -96,6 +117,7 @@ export function DailySchedule() {
   const lockMutation = useLockSchedule()
   const unlockMutation = useUnlockSchedule()
   const updateTripMutation = useUpdateTrip()
+  const onDemandMutation = useCreateOnDemandDelivery()
 
   // Form for trip assignment
   const {
@@ -107,6 +129,45 @@ export function DailySchedule() {
   } = useForm<TripAssignmentFormData>({
     resolver: zodResolver(tripAssignmentSchema),
   })
+
+  // Form for on-demand delivery
+  const {
+    register: registerOnDemand,
+    handleSubmit: handleSubmitOnDemand,
+    control: controlOnDemand,
+    reset: resetOnDemand,
+    watch: watchOnDemand,
+    formState: { errors: errorsOnDemand },
+  } = useForm<OnDemandFormData>({
+    resolver: zodResolver(onDemandSchema),
+    defaultValues: {
+      auto_assign: true,
+      preferred_start_time: '08:00',
+      preferred_end_time: '10:00',
+    },
+  })
+
+  // Customer options
+  const customerOptions = useMemo(() => {
+    return [
+      { value: 0, label: 'Select customer...' },
+      ...(customersData?.items || []).map((c) => ({
+        value: c.id,
+        label: `${c.code} - ${c.name}`,
+      })),
+    ]
+  }, [customersData])
+
+  // Fuel blend options
+  const fuelBlendOptions = useMemo(() => {
+    return [
+      { value: 0, label: 'Default (from customer)' },
+      ...(fuelBlendsData || []).map((b) => ({
+        value: b.id,
+        label: `${b.code} - ${b.name}`,
+      })),
+    ]
+  }, [fuelBlendsData])
 
   // Tanker options (compatible tankers first)
   const tankerOptions = useMemo(() => {
@@ -170,7 +231,7 @@ export function DailySchedule() {
 
   // Trip handlers
   const handleTripClick = (trip: Trip) => {
-    if (!canEdit || schedule?.is_locked) return
+    if (!canEdit || scheduleData?.is_locked) return
     setSelectedTrip(trip)
     reset({
       tanker_id: trip.tanker?.id || null,
@@ -218,7 +279,7 @@ export function DailySchedule() {
   // Lock/unlock schedule
   const handleToggleLock = async () => {
     try {
-      if (schedule?.is_locked) {
+      if (scheduleData?.is_locked) {
         await unlockMutation.mutateAsync(dateString)
         toast.success('Schedule unlocked')
       } else {
@@ -231,10 +292,40 @@ export function DailySchedule() {
     }
   }
 
-  // Calculate trip position on timeline
-  const getTripPosition = (trip: Trip) => {
-    const [startHour, startMin] = trip.start_time.split(':').map(Number)
-    const [endHour, endMin] = trip.end_time.split(':').map(Number)
+  // On-demand delivery
+  const handleOpenOnDemand = () => {
+    resetOnDemand({
+      auto_assign: true,
+      preferred_start_time: '08:00',
+      preferred_end_time: '10:00',
+    })
+    setOnDemandModalOpen(true)
+  }
+
+  const onSubmitOnDemand = async (data: OnDemandFormData) => {
+    try {
+      const result = await onDemandMutation.mutateAsync({
+        date: dateString,
+        customer_id: data.customer_id,
+        fuel_blend_id: data.fuel_blend_id === 0 ? null : data.fuel_blend_id,
+        volume: data.volume,
+        preferred_start_time: data.preferred_start_time || null,
+        preferred_end_time: data.preferred_end_time || null,
+        notes: data.notes,
+        auto_assign: data.auto_assign,
+      })
+      toast.success(result.message)
+      setOnDemandModalOpen(false)
+      refetch()
+    } catch (error) {
+      toast.error('Failed to create on-demand delivery')
+    }
+  }
+
+  // Calculate trip/group position on timeline
+  const getTimePosition = (startTime: string, endTime: string) => {
+    const [startHour, startMin] = startTime.split(':').map(Number)
+    const [endHour, endMin] = endTime.split(':').map(Number)
 
     const startMinutes = (startHour - 6) * 60 + startMin
     const endMinutes = (endHour - 6) * 60 + endMin
@@ -243,26 +334,8 @@ export function DailySchedule() {
     const left = (startMinutes / totalMinutes) * 100
     const width = ((endMinutes - startMinutes) / totalMinutes) * 100
 
-    return { left: `${Math.max(0, left)}%`, width: `${Math.min(100 - left, width)}%` }
+    return { left: `${Math.max(0, left)}%`, width: `${Math.min(100 - left, Math.max(width, 5))}%` }
   }
-
-  // Group trips by tanker
-  const tripsByTanker = useMemo(() => {
-    if (!schedule?.trips) return new Map<string, Trip[]>()
-
-    const grouped = new Map<string, Trip[]>()
-    grouped.set('unassigned', [])
-
-    schedule.trips.forEach((trip) => {
-      const key = trip.tanker ? `tanker-${trip.tanker.id}` : 'unassigned'
-      if (!grouped.has(key)) {
-        grouped.set(key, [])
-      }
-      grouped.get(key)!.push(trip)
-    })
-
-    return grouped
-  }, [schedule?.trips])
 
   const formattedDate = format(selectedDate, 'EEEE, d MMMM yyyy')
 
@@ -278,18 +351,26 @@ export function DailySchedule() {
           <div className="flex gap-2">
             <Button
               variant="secondary"
+              onClick={handleOpenOnDemand}
+              disabled={scheduleData?.is_locked}
+            >
+              <Plus className="h-4 w-4" />
+              On-Demand
+            </Button>
+            <Button
+              variant="secondary"
               onClick={() => setGenerateDialogOpen(true)}
-              disabled={schedule?.is_locked}
+              disabled={scheduleData?.is_locked}
             >
               <RefreshCw className="h-4 w-4" />
               Generate
             </Button>
             <Button
-              variant={schedule?.is_locked ? 'primary' : 'secondary'}
+              variant={scheduleData?.is_locked ? 'primary' : 'secondary'}
               onClick={handleToggleLock}
               isLoading={lockMutation.isPending || unlockMutation.isPending}
             >
-              {schedule?.is_locked ? (
+              {scheduleData?.is_locked ? (
                 <>
                   <Unlock className="h-4 w-4" />
                   Unlock
@@ -334,48 +415,54 @@ export function DailySchedule() {
       </Card>
 
       {/* Summary stats */}
-      {schedule && (
+      {scheduleData && (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
           <Card className="text-center">
             <div className="text-2xl font-bold text-gray-900">
-              {schedule.summary.total_trips}
+              {scheduleData.summary.total_trips}
             </div>
             <div className="text-sm text-gray-500">Total Trips</div>
           </Card>
           <Card className="text-center">
             <div className="text-2xl font-bold text-green-600">
-              {schedule.summary.assigned_trips}
+              {scheduleData.summary.assigned_trips}
             </div>
             <div className="text-sm text-gray-500">Assigned</div>
           </Card>
           <Card className="text-center">
             <div className="text-2xl font-bold text-yellow-600">
-              {schedule.summary.unassigned_trips}
+              {scheduleData.summary.unassigned_trips}
             </div>
             <div className="text-sm text-gray-500">Unassigned</div>
           </Card>
           <Card className="text-center">
             <div className="text-2xl font-bold text-red-600">
-              {schedule.summary.conflict_trips}
+              {scheduleData.summary.conflict_trips}
             </div>
             <div className="text-sm text-gray-500">Conflicts</div>
           </Card>
           <Card className="text-center">
             <div className="text-2xl font-bold text-blue-600">
-              {formatVolume(schedule.summary.total_volume)}
+              {formatVolume(scheduleData.summary.total_volume)}
             </div>
             <div className="text-sm text-gray-500">Total Volume</div>
           </Card>
         </div>
       )}
 
-      {/* Timeline view */}
+      {/* Trip Groups Gantt View */}
       <Card padding="none">
+        <div className="border-b bg-gray-50 px-4 py-3">
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <Users className="h-5 w-5 text-primary-500" />
+            Trip Groups Schedule
+          </h3>
+        </div>
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
           </div>
-        ) : !schedule || schedule.trips.length === 0 ? (
+        ) : !scheduleData || (scheduleData.trip_groups.length === 0 && scheduleData.unassigned_trips.trips.length === 0) ? (
           <div className="py-12 text-center">
             <p className="text-gray-500">No trips scheduled for this day.</p>
             {canEdit && (
@@ -389,8 +476,8 @@ export function DailySchedule() {
           <div className="overflow-x-auto">
             {/* Time header */}
             <div className="flex border-b bg-gray-50">
-              <div className="w-48 flex-shrink-0 border-r px-4 py-2 font-medium text-gray-700">
-                Tanker / Driver
+              <div className="w-56 flex-shrink-0 border-r px-4 py-2 font-medium text-gray-700">
+                Trip Group / Driver
               </div>
               <div className="flex flex-1">
                 {TIME_SLOTS.map((slot) => (
@@ -405,160 +492,68 @@ export function DailySchedule() {
               </div>
             </div>
 
-            {/* Trip rows */}
-            {Array.from(tripsByTanker.entries()).map(([key, trips]) => {
-              if (trips.length === 0) return null
+            {/* Trip Group rows */}
+            {scheduleData.trip_groups.map((group) => (
+              <TripGroupRow
+                key={group.id}
+                group={group}
+                getTimePosition={getTimePosition}
+                onTripClick={handleTripClick}
+                isLocked={scheduleData.is_locked}
+                canEdit={canEdit}
+                statusVariants={statusVariants}
+              />
+            ))}
 
-              const tanker = trips[0].tanker
-              const isUnassigned = key === 'unassigned'
-
-              return (
-                <div key={key} className="flex border-b">
-                  <div className="w-48 flex-shrink-0 border-r px-4 py-3">
-                    {isUnassigned ? (
-                      <div className="flex items-center gap-2 text-yellow-600">
-                        <AlertTriangle className="h-4 w-4" />
-                        <span className="font-medium">Unassigned</span>
-                      </div>
-                    ) : (
-                      <div>
-                        <div className="flex items-center gap-2 font-medium text-gray-900">
-                          <Truck className="h-4 w-4 text-primary-500" />
-                          {tanker?.name}
-                        </div>
-                      </div>
-                    )}
+            {/* Unassigned/Ad-hoc trips */}
+            {scheduleData.unassigned_trips.trips.length > 0 && (
+              <div className="flex border-b border-t-2 border-t-yellow-300">
+                <div className="w-56 flex-shrink-0 border-r bg-yellow-50 px-4 py-3">
+                  <div className="flex items-center gap-2 text-yellow-700">
+                    <AlertTriangle className="h-4 w-4" />
+                    <span className="font-medium">Ad-hoc / Unassigned</span>
                   </div>
-                  <div className="relative flex-1" style={{ minHeight: '60px' }}>
-                    {/* Background grid */}
-                    <div className="absolute inset-0 flex">
-                      {TIME_SLOTS.map((slot) => (
-                        <div
-                          key={slot.value}
-                          className="flex-1 border-r"
-                          style={{ minWidth: '60px' }}
-                        />
-                      ))}
-                    </div>
-                    {/* Trips */}
-                    {trips.map((trip) => {
-                      const position = getTripPosition(trip)
-                      return (
-                        <div
-                          key={trip.id}
-                          className={`absolute top-1 bottom-1 rounded px-2 py-1 text-xs cursor-pointer transition-transform hover:scale-[1.02] ${
-                            trip.status === 'conflict'
-                              ? 'bg-red-100 border-2 border-red-400'
-                              : trip.status === 'unassigned'
-                              ? 'bg-yellow-100 border-2 border-yellow-400'
-                              : trip.status === 'completed'
-                              ? 'bg-green-100 border border-green-300'
-                              : 'bg-blue-100 border border-blue-300'
-                          }`}
-                          style={{
-                            left: position.left,
-                            width: position.width,
-                            minWidth: '80px',
-                          }}
-                          onClick={() => handleTripClick(trip)}
-                          title={`${trip.customer.code}: ${formatTime(trip.start_time)} - ${formatTime(trip.end_time)}`}
-                        >
-                          <div className="font-medium truncate">
-                            {trip.customer.code}
-                          </div>
-                          <div className="truncate text-gray-600">
-                            {formatVolume(trip.volume)}
-                          </div>
-                        </div>
-                      )
-                    })}
+                  <div className="mt-1 text-xs text-yellow-600">
+                    {scheduleData.unassigned_trips.trips.length} trip(s) - {formatVolume(scheduleData.unassigned_trips.total_volume)}
                   </div>
                 </div>
-              )
-            })}
+                <div className="relative flex-1 bg-yellow-50/30" style={{ minHeight: '70px' }}>
+                  {/* Background grid */}
+                  <div className="absolute inset-0 flex">
+                    {TIME_SLOTS.map((slot) => (
+                      <div
+                        key={slot.value}
+                        className="flex-1 border-r border-yellow-200"
+                        style={{ minWidth: '60px' }}
+                      />
+                    ))}
+                  </div>
+                  {/* Trips */}
+                  {scheduleData.unassigned_trips.trips.map((trip) => {
+                    const position = getTimePosition(trip.start_time, trip.end_time)
+                    return (
+                      <div
+                        key={trip.id}
+                        className="absolute top-2 bottom-2 rounded px-2 py-1 text-xs cursor-pointer transition-transform hover:scale-[1.02] bg-yellow-100 border-2 border-yellow-400"
+                        style={{
+                          left: position.left,
+                          width: position.width,
+                          minWidth: '80px',
+                        }}
+                        onClick={() => handleTripClick(trip)}
+                        title={`${trip.customer.code}: ${formatTime(trip.start_time)} - ${formatTime(trip.end_time)}`}
+                      >
+                        <div className="font-medium truncate">{trip.customer.code}</div>
+                        <div className="truncate text-yellow-700">{formatVolume(trip.volume)}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </Card>
-
-      {/* Trip list view */}
-      {schedule && schedule.trips.length > 0 && (
-        <Card>
-          <h3 className="mb-4 text-lg font-semibold text-gray-900">Trip Details</h3>
-          <div className="space-y-3">
-            {schedule.trips
-              .sort((a, b) => a.start_time.localeCompare(b.start_time))
-              .map((trip) => (
-                <div
-                  key={trip.id}
-                  className={`rounded-lg border p-4 ${
-                    canEdit && !schedule.is_locked ? 'cursor-pointer hover:bg-gray-50' : ''
-                  }`}
-                  onClick={() => handleTripClick(trip)}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-1.5 text-gray-900">
-                          <Clock className="h-4 w-4 text-gray-400" />
-                          <span className="font-medium">
-                            {formatTime(trip.start_time)} - {formatTime(trip.end_time)}
-                          </span>
-                        </div>
-                        <Badge variant={statusVariants[trip.status]}>
-                          {trip.status.charAt(0).toUpperCase() + trip.status.slice(1)}
-                        </Badge>
-                      </div>
-
-                      <div className="mt-2 text-lg font-semibold text-gray-900">
-                        {trip.customer.code} - {trip.customer.name}
-                      </div>
-
-                      <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-gray-600">
-                        <div className="flex items-center gap-1.5">
-                          <Droplet className="h-4 w-4 text-blue-500" />
-                          <span>{formatVolume(trip.volume)}</span>
-                          {trip.fuel_blend && (
-                            <Badge variant="secondary" className="ml-1 text-xs">
-                              {trip.fuel_blend.code}
-                            </Badge>
-                          )}
-                        </div>
-                        {trip.tanker ? (
-                          <div className="flex items-center gap-1.5">
-                            <Truck className="h-4 w-4 text-primary-500" />
-                            <span>{trip.tanker.name}</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1.5 text-yellow-600">
-                            <Truck className="h-4 w-4" />
-                            <span>No tanker</span>
-                          </div>
-                        )}
-                        {trip.driver ? (
-                          <div className="flex items-center gap-1.5">
-                            <User className="h-4 w-4 text-gray-500" />
-                            <span>{trip.driver.name}</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1.5 text-yellow-600">
-                            <User className="h-4 w-4" />
-                            <span>No driver</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {canEdit && !schedule.is_locked && (
-                      <Button variant="ghost" size="sm">
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
-          </div>
-        </Card>
-      )}
 
       {/* Trip Assignment Modal */}
       <Modal
@@ -652,6 +647,99 @@ export function DailySchedule() {
         )}
       </Modal>
 
+      {/* On-Demand Delivery Modal */}
+      <Modal
+        isOpen={onDemandModalOpen}
+        onClose={() => setOnDemandModalOpen(false)}
+        title="Add On-Demand Delivery"
+        size="lg"
+      >
+        <form onSubmit={handleSubmitOnDemand(onSubmitOnDemand)}>
+          <div className="space-y-4">
+            <Controller
+              name="customer_id"
+              control={controlOnDemand}
+              render={({ field }) => (
+                <Select
+                  label="Customer"
+                  options={customerOptions}
+                  value={field.value || 0}
+                  onChange={(e) => field.onChange(Number(e.target.value))}
+                  error={errorsOnDemand.customer_id?.message}
+                />
+              )}
+            />
+
+            <Controller
+              name="fuel_blend_id"
+              control={controlOnDemand}
+              render={({ field }) => (
+                <Select
+                  label="Fuel Blend"
+                  options={fuelBlendOptions}
+                  value={field.value || 0}
+                  onChange={(e) => field.onChange(Number(e.target.value))}
+                  error={errorsOnDemand.fuel_blend_id?.message}
+                />
+              )}
+            />
+
+            <Input
+              label="Volume (L)"
+              type="number"
+              {...registerOnDemand('volume')}
+              error={errorsOnDemand.volume?.message}
+            />
+
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Preferred Start Time"
+                type="time"
+                {...registerOnDemand('preferred_start_time')}
+                error={errorsOnDemand.preferred_start_time?.message}
+              />
+              <Input
+                label="Preferred End Time"
+                type="time"
+                {...registerOnDemand('preferred_end_time')}
+                error={errorsOnDemand.preferred_end_time?.message}
+              />
+            </div>
+
+            <Input
+              label="Notes"
+              {...registerOnDemand('notes')}
+              error={errorsOnDemand.notes?.message}
+            />
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="auto_assign"
+                {...registerOnDemand('auto_assign')}
+                className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              />
+              <label htmlFor="auto_assign" className="text-sm text-gray-700">
+                Auto-assign to compatible tanker
+              </label>
+            </div>
+          </div>
+
+          <ModalFooter>
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={() => setOnDemandModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" isLoading={onDemandMutation.isPending}>
+              Create Delivery
+            </Button>
+          </ModalFooter>
+        </form>
+      </Modal>
+
       {/* Generate Schedule Confirmation */}
       <ConfirmDialog
         isOpen={generateDialogOpen}
@@ -663,6 +751,142 @@ export function DailySchedule() {
         variant="warning"
         isLoading={generateMutation.isPending}
       />
+    </div>
+  )
+}
+
+// Trip Group Row Component
+interface TripGroupRowProps {
+  group: TripGroupScheduleItem
+  getTimePosition: (startTime: string, endTime: string) => { left: string; width: string }
+  onTripClick: (trip: Trip) => void
+  isLocked: boolean
+  canEdit: boolean
+  statusVariants: Record<TripStatus, 'success' | 'warning' | 'danger' | 'secondary' | 'info'>
+}
+
+function TripGroupRow({
+  group,
+  getTimePosition,
+  onTripClick,
+  isLocked,
+  canEdit,
+  statusVariants,
+}: TripGroupRowProps) {
+  // Calculate group bar position
+  const groupPosition = group.earliest_start_time && group.latest_end_time
+    ? getTimePosition(group.earliest_start_time, group.latest_end_time)
+    : null
+
+  const hasDriver = !!group.driver
+  const hasTrips = group.trips.length > 0
+
+  return (
+    <div className="flex border-b">
+      {/* Group info */}
+      <div className={`w-56 flex-shrink-0 border-r px-4 py-3 ${!hasDriver ? 'bg-red-50' : ''}`}>
+        <div className="flex items-center gap-2">
+          <div className={`h-3 w-3 rounded-full ${hasDriver ? 'bg-green-500' : 'bg-red-400'}`} />
+          <span className="font-medium text-gray-900 truncate">{group.name}</span>
+        </div>
+        {group.driver ? (
+          <div className="mt-1 flex items-center gap-1.5 text-sm text-gray-600">
+            <User className="h-3.5 w-3.5 text-gray-400" />
+            <span>{group.driver.name}</span>
+          </div>
+        ) : (
+          <div className="mt-1 flex items-center gap-1.5 text-sm text-red-600">
+            <User className="h-3.5 w-3.5" />
+            <span>No driver assigned</span>
+          </div>
+        )}
+        <div className="mt-1 text-xs text-gray-500">
+          {group.trips.length} trip(s) - {formatVolume(group.total_volume)}
+        </div>
+      </div>
+
+      {/* Timeline */}
+      <div className="relative flex-1" style={{ minHeight: '80px' }}>
+        {/* Background grid */}
+        <div className="absolute inset-0 flex">
+          {TIME_SLOTS.map((slot) => (
+            <div
+              key={slot.value}
+              className="flex-1 border-r"
+              style={{ minWidth: '60px' }}
+            />
+          ))}
+        </div>
+
+        {/* Group span bar (background) */}
+        {groupPosition && (
+          <div
+            className={`absolute top-0 bottom-0 ${hasDriver ? 'bg-primary-50/50' : 'bg-red-50/50'} border-l-4 ${hasDriver ? 'border-l-primary-400' : 'border-l-red-400'}`}
+            style={{
+              left: groupPosition.left,
+              width: groupPosition.width,
+            }}
+          />
+        )}
+
+        {/* Individual trips */}
+        {group.trips.map((trip, idx) => {
+          const position = getTimePosition(trip.start_time, trip.end_time)
+          const topOffset = 8 + (idx * 2) // Slight stagger if needed
+          return (
+            <div
+              key={trip.id}
+              className={`absolute rounded px-2 py-1 text-xs transition-transform ${
+                canEdit && !isLocked ? 'cursor-pointer hover:scale-[1.02]' : ''
+              } ${
+                trip.status === 'conflict'
+                  ? 'bg-red-100 border-2 border-red-400'
+                  : trip.status === 'unassigned'
+                  ? 'bg-yellow-100 border-2 border-yellow-400'
+                  : trip.status === 'completed'
+                  ? 'bg-green-100 border border-green-300'
+                  : 'bg-blue-100 border border-blue-300'
+              }`}
+              style={{
+                left: position.left,
+                width: position.width,
+                minWidth: '80px',
+                top: `${topOffset}px`,
+                height: 'calc(100% - 16px)',
+                maxHeight: '56px',
+              }}
+              onClick={() => onTripClick(trip)}
+              title={`${trip.customer.code}: ${formatTime(trip.start_time)} - ${formatTime(trip.end_time)}`}
+            >
+              <div className="font-medium truncate">{trip.customer.code}</div>
+              <div className="truncate text-gray-600 flex items-center gap-1">
+                <Droplet className="h-3 w-3 text-blue-500" />
+                {formatVolume(trip.volume)}
+              </div>
+              {trip.tanker && (
+                <div className="truncate text-gray-500 flex items-center gap-1">
+                  <Truck className="h-3 w-3" />
+                  {trip.tanker.name}
+                </div>
+              )}
+            </div>
+          )
+        })}
+
+        {/* Empty group placeholder */}
+        {!hasTrips && groupPosition && (
+          <div
+            className="absolute top-2 bottom-2 rounded border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 text-xs"
+            style={{
+              left: groupPosition.left,
+              width: groupPosition.width,
+              minWidth: '100px',
+            }}
+          >
+            No trips generated
+          </div>
+        )}
+      </div>
     </div>
   )
 }

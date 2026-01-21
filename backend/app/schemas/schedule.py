@@ -240,3 +240,64 @@ class GenerateScheduleResponse(BaseModel):
     trips_created: int
     trips_skipped: int
     message: str
+
+
+# Trip Group Schedule View Schemas
+class TripGroupScheduleItem(BaseModel):
+    """A trip group with its assigned driver and trips for the schedule view."""
+
+    id: int
+    name: str
+    day_of_week: int
+    day_name: str
+    description: Optional[str]
+    driver: Optional[DriverBasicResponse]  # From weekly assignment
+    trips: list[TripResponse]
+    earliest_start_time: Optional[time]
+    latest_end_time: Optional[time]
+    total_volume: int
+    template_count: int
+
+
+class UnassignedTripsGroup(BaseModel):
+    """Trips that don't belong to any group (ad-hoc or orphaned)."""
+
+    trips: list[TripResponse]
+    total_volume: int
+
+
+class TripGroupScheduleResponse(BaseModel):
+    """Schedule response organized by trip groups."""
+
+    id: Optional[int]
+    schedule_date: date
+    day_of_week: int
+    day_name: str
+    is_locked: bool
+    trip_groups: list[TripGroupScheduleItem]
+    unassigned_trips: UnassignedTripsGroup  # Trips not in any group
+    summary: ScheduleSummary
+    notes: Optional[str]
+    created_at: Optional[datetime]
+
+
+# On-Demand Delivery Schemas
+class OnDemandDeliveryRequest(BaseModel):
+    """Request to create an on-demand delivery with auto-assignment."""
+
+    customer_id: int
+    fuel_blend_id: Optional[int] = None
+    volume: int = Field(..., gt=0)
+    preferred_start_time: Optional[time] = None
+    preferred_end_time: Optional[time] = None
+    notes: Optional[str] = None
+    auto_assign: bool = True  # If True, auto-assign tanker and find time slot
+
+
+class OnDemandDeliveryResponse(BaseModel):
+    """Response after creating an on-demand delivery."""
+
+    trip: TripResponse
+    auto_assigned: bool
+    assigned_tanker: Optional[TankerBasicResponse]
+    message: str

@@ -14,6 +14,8 @@ from app.schemas.schedule import (
     DailyScheduleResponse,
     GenerateScheduleRequest,
     GenerateScheduleResponse,
+    OnDemandDeliveryRequest,
+    OnDemandDeliveryResponse,
     ScheduleSummary,
     TripAssignment,
     TripCreate,
@@ -500,3 +502,266 @@ def delete_trip(
 
     db.delete(trip)
     db.commit()
+
+
+@router.get("/{schedule_date}/groups")
+def get_schedule_by_groups(
+    schedule_date: date = Path(..., description="Date in YYYY-MM-DD format"),
+    db: DbSession = None,
+    current_user: CurrentUser = None,
+):
+    """
+    Get the daily schedule organized by trip groups.
+
+    Returns trip groups with their assigned drivers (from weekly assignments)
+    and the trips within each group.
+    """
+    from app.schemas.schedule import (
+        TripGroupScheduleItem,
+        TripGroupScheduleResponse,
+        UnassignedTripsGroup,
+        DriverBasicResponse,
+    )
+
+    day_of_week = get_day_of_week(schedule_date)
+    week_start = get_week_start(schedule_date)
+
+    # Get the schedule
+    schedule = (
+        db.query(DailySchedule)
+        .filter(DailySchedule.schedule_date == schedule_date)
+        .first()
+    )
+
+    # Get all trip groups for this day
+    trip_groups = (
+        db.query(TripGroup)
+        .filter(TripGroup.day_of_week == day_of_week)
+        .filter(TripGroup.is_active == True)
+        .order_by(TripGroup.name)
+        .all()
+    )
+
+    # Get weekly driver assignments for this week
+    assignments = (
+        db.query(WeeklyDriverAssignment)
+        .filter(WeeklyDriverAssignment.week_start_date == week_start)
+        .all()
+    )
+    group_to_driver = {a.trip_group_id: a.driver for a in assignments}
+
+    # Build a mapping of template_id to trip_group_id
+    template_to_group = {}
+    for group in trip_groups:
+        for template in group.templates:
+            template_to_group[template.id] = group.id
+
+    # If no schedule exists, return empty structure
+    if not schedule:
+        group_items = []
+        for group in trip_groups:
+            driver = group_to_driver.get(group.id)
+            group_items.append(
+                TripGroupScheduleItem(
+                    id=group.id,
+                    name=group.name,
+                    day_of_week=group.day_of_week,
+                    day_name=group.day_name,
+                    description=group.description,
+                    driver=DriverBasicResponse(id=driver.id, name=driver.name) if driver else None,
+                    trips=[],
+                    earliest_start_time=group.earliest_start_time,
+                    latest_end_time=group.latest_end_time,
+                    total_volume=0,
+                    template_count=len(group.templates),
+                )
+            )
+
+        return TripGroupScheduleResponse(
+            id=None,
+            schedule_date=schedule_date,
+            day_of_week=day_of_week,
+            day_name=get_day_name(day_of_week),
+            is_locked=False,
+            trip_groups=group_items,
+            unassigned_trips=UnassignedTripsGroup(trips=[], total_volume=0),
+            summary=ScheduleSummary(
+                total_trips=0,
+                assigned_trips=0,
+                unassigned_trips=0,
+                conflict_trips=0,
+                total_volume=0,
+            ),
+            notes=None,
+            created_at=None,
+        )
+
+    # Group trips by trip group
+    trips_by_group = {group.id: [] for group in trip_groups}
+    unassigned_trips = []
+
+    for trip in schedule.trips:
+        group_id = template_to_group.get(trip.template_id)
+        if group_id and group_id in trips_by_group:
+            trips_by_group[group_id].append(trip)
+        else:
+            # Trip not in any group (ad-hoc or orphaned)
+            unassigned_trips.append(trip)
+
+    # Build response
+    group_items = []
+    for group in trip_groups:
+        driver = group_to_driver.get(group.id)
+        group_trips = trips_by_group.get(group.id, [])
+
+        group_items.append(
+            TripGroupScheduleItem(
+                id=group.id,
+                name=group.name,
+                day_of_week=group.day_of_week,
+                day_name=group.day_name,
+                description=group.description,
+                driver=DriverBasicResponse(id=driver.id, name=driver.name) if driver else None,
+                trips=group_trips,
+                earliest_start_time=group.earliest_start_time,
+                latest_end_time=group.latest_end_time,
+                total_volume=sum(t.volume for t in group_trips),
+                template_count=len(group.templates),
+            )
+        )
+
+    return TripGroupScheduleResponse(
+        id=schedule.id,
+        schedule_date=schedule.schedule_date,
+        day_of_week=schedule.day_of_week,
+        day_name=get_day_name(schedule.day_of_week),
+        is_locked=schedule.is_locked,
+        trip_groups=group_items,
+        unassigned_trips=UnassignedTripsGroup(
+            trips=unassigned_trips,
+            total_volume=sum(t.volume for t in unassigned_trips),
+        ),
+        summary=calculate_summary(schedule.trips),
+        notes=schedule.notes,
+        created_at=schedule.created_at,
+    )
+
+
+@router.post("/{schedule_date}/on-demand", response_model=OnDemandDeliveryResponse)
+def create_on_demand_delivery(
+    schedule_date: date,
+    request: OnDemandDeliveryRequest,
+    db: DbSession,
+    editor: EditorUser,
+):
+    """
+    Create an on-demand delivery with optional auto-assignment.
+
+    If auto_assign is True, will find a compatible tanker that:
+    - Has capacity for the volume
+    - Supports the fuel blend
+    - Covers the customer's emirate
+    - Has no time conflicts
+    """
+    from app.schemas.schedule import TankerBasicResponse
+    from datetime import time as time_type
+
+    day_of_week = get_day_of_week(schedule_date)
+
+    # Get or create schedule
+    schedule = (
+        db.query(DailySchedule)
+        .filter(DailySchedule.schedule_date == schedule_date)
+        .first()
+    )
+
+    if not schedule:
+        schedule = DailySchedule(
+            schedule_date=schedule_date,
+            day_of_week=day_of_week,
+            created_by=editor.id,
+        )
+        db.add(schedule)
+        db.flush()
+
+    if schedule.is_locked:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Schedule is locked",
+        )
+
+    # Get customer
+    customer = db.query(Customer).filter(Customer.id == request.customer_id).first()
+    if not customer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Customer not found",
+        )
+
+    # Determine time slot
+    start_time = request.preferred_start_time or time_type(8, 0)  # Default 8 AM
+    end_time = request.preferred_end_time or time_type(
+        start_time.hour + 2, start_time.minute
+    )  # Default 2 hour window
+
+    assigned_tanker = None
+    assigned_tanker_response = None
+    auto_assigned = False
+    message = "On-demand delivery created"
+
+    if request.auto_assign:
+        # Find compatible tankers
+        validation_service = TripValidationService(db)
+        compatible_tankers = validation_service.get_compatible_tankers(
+            customer=customer,
+            fuel_blend_id=request.fuel_blend_id,
+            volume=request.volume,
+        )
+
+        # Find first tanker with no time conflicts
+        for tanker in compatible_tankers:
+            conflicts = validation_service.check_trip_conflicts(
+                tanker_id=tanker.id,
+                schedule_date=schedule_date,
+                start_time=start_time,
+                end_time=end_time,
+            )
+            if not conflicts:
+                assigned_tanker = tanker
+                assigned_tanker_response = TankerBasicResponse(
+                    id=tanker.id,
+                    name=tanker.name,
+                )
+                auto_assigned = True
+                message = f"On-demand delivery created and assigned to {tanker.name}"
+                break
+
+        if not assigned_tanker:
+            message = "On-demand delivery created but no compatible tanker available"
+
+    # Create the trip
+    trip = Trip(
+        daily_schedule_id=schedule.id,
+        template_id=None,  # No template for on-demand
+        customer_id=customer.id,
+        tanker_id=assigned_tanker.id if assigned_tanker else None,
+        driver_id=assigned_tanker.default_driver_id if assigned_tanker else None,
+        start_time=start_time,
+        end_time=end_time,
+        fuel_blend_id=request.fuel_blend_id or customer.fuel_blend_id,
+        volume=request.volume,
+        is_mobile_op=customer.customer_type == "mobile",
+        needs_return=False,
+        status=TripStatus.SCHEDULED if assigned_tanker else TripStatus.UNASSIGNED,
+        notes=request.notes or "On-demand delivery",
+    )
+    db.add(trip)
+    db.commit()
+    db.refresh(trip)
+
+    return OnDemandDeliveryResponse(
+        trip=trip,
+        auto_assigned=auto_assigned,
+        assigned_tanker=assigned_tanker_response,
+        message=message,
+    )
