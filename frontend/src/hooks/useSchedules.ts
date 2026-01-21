@@ -53,8 +53,9 @@ const fetchTemplatesByDay = async (dayOfWeek: number): Promise<WeeklyTemplate[]>
 }
 
 const fetchAllTemplates = async (): Promise<WeeklyTemplate[]> => {
-  const { data } = await api.get('/templates')
-  return data
+  // Fetch all templates (use large per_page to get all in one request)
+  const { data } = await api.get('/templates', { params: { per_page: 500, is_active: true } })
+  return data.items || []
 }
 
 const createTemplate = async (template: CreateTemplateRequest): Promise<WeeklyTemplate> => {
