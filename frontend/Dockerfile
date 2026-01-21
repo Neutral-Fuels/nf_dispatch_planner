@@ -1,13 +1,13 @@
 # frontend/Dockerfile
 
 # Build stage
-FROM node:20-alpine as builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
 # Install dependencies
-COPY package.json package-lock.json* ./
-RUN npm ci
+COPY package.json ./
+RUN npm install
 
 # Copy source and build
 COPY . .
