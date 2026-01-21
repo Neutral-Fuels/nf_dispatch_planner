@@ -12,6 +12,8 @@ import { Tankers } from './pages/Tankers'
 import { Customers } from './pages/Customers'
 import { DailySchedule } from './pages/DailySchedule'
 import { WeeklyTemplates } from './pages/WeeklyTemplates'
+import { TripGroups } from './pages/TripGroups'
+import { WeeklyAssignments } from './pages/WeeklyAssignments'
 import { DriverSchedule } from './pages/DriverSchedule'
 import { DriverTripSheet } from './pages/DriverTripSheet'
 import { Users } from './pages/Users'
@@ -53,6 +55,8 @@ function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/schedule/:date?" element={<DailySchedule />} />
             <Route path="/templates" element={<WeeklyTemplates />} />
+            <Route path="/trip-groups" element={<TripGroups />} />
+            <Route path="/weekly-assignments" element={<WeeklyAssignments />} />
             <Route path="/driver-schedule" element={<DriverSchedule />} />
             <Route path="/driver-trip-sheet" element={<DriverTripSheet />} />
             <Route path="/drivers" element={<Drivers />} />

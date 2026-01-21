@@ -10,6 +10,8 @@ import {
   Building2,
   Settings,
   UserCog,
+  Layers,
+  UserCheck,
 } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { useAuthStore } from '../../store/authStore'
@@ -18,6 +20,8 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Daily Schedule', href: '/schedule', icon: Calendar },
   { name: 'Weekly Templates', href: '/templates', icon: CalendarClock },
+  { name: 'Trip Groups', href: '/trip-groups', icon: Layers },
+  { name: 'Weekly Assignments', href: '/weekly-assignments', icon: UserCheck },
   { name: 'Driver Schedule', href: '/driver-schedule', icon: CalendarDays },
   { name: 'Trip Sheet', href: '/driver-trip-sheet', icon: ClipboardList },
   { name: 'Drivers', href: '/drivers', icon: Users },

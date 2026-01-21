@@ -1,6 +1,6 @@
 """Daily schedule and trip management endpoints."""
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Path, status
 
@@ -8,6 +8,7 @@ from app.api.deps import CurrentUser, DbSession, EditorUser
 from app.models.customer import Customer
 from app.models.schedule import DailySchedule, Trip, TripStatus, WeeklyTemplate
 from app.models.tanker import Tanker
+from app.models.trip_group import TripGroup, WeeklyDriverAssignment, trip_group_templates
 from app.services.validation import TripValidationService, ValidationResult
 from app.schemas.schedule import (
     DailyScheduleResponse,
@@ -34,6 +35,13 @@ def get_day_name(day_of_week: int) -> str:
     """Get day name from UAE day of week."""
     days = ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
     return days[day_of_week]
+
+
+def get_week_start(d: date) -> date:
+    """Get the Saturday that starts the week containing the given date."""
+    # UAE week starts Saturday
+    days_since_saturday = (d.weekday() + 2) % 7
+    return d - timedelta(days=days_since_saturday)
 
 
 def calculate_summary(trips: list[Trip]) -> ScheduleSummary:
@@ -162,14 +170,37 @@ def generate_schedule(
         .all()
     )
 
+    # Get week start for this date to look up driver assignments
+    week_start = get_week_start(schedule_date)
+
+    # Get all driver assignments for this week
+    # Build a mapping from template_id to driver_id
+    template_to_driver = {}
+    assignments = (
+        db.query(WeeklyDriverAssignment)
+        .filter(WeeklyDriverAssignment.week_start_date == week_start)
+        .all()
+    )
+
+    # For each assignment, get the trip group's templates and map them to the driver
+    for assignment in assignments:
+        trip_group = db.query(TripGroup).filter(TripGroup.id == assignment.trip_group_id).first()
+        if trip_group:
+            for group_template in trip_group.templates:
+                template_to_driver[group_template.id] = assignment.driver_id
+
     # Generate trips from templates
     trips_created = 0
     for template in templates:
+        # Look up driver from weekly assignment
+        driver_id = template_to_driver.get(template.id)
+
         trip = Trip(
             daily_schedule_id=schedule.id,
             template_id=template.id,
             customer_id=template.customer_id,
             tanker_id=template.tanker_id,
+            driver_id=driver_id,  # Assign driver from trip group assignment
             start_time=template.start_time,
             end_time=template.end_time,
             fuel_blend_id=template.fuel_blend_id,
