@@ -1,8 +1,6 @@
 # Production Docker Compose Override
 # Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
-version: '3.8'
-
 services:
   # ===================
   # PostgreSQL Database (Production)
@@ -14,15 +12,6 @@ services:
       POSTGRES_DB: ${DB_NAME}
     # Remove port exposure in production (only internal)
     ports: []
-    # Add resource limits
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 2G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
 
   # ===================
   # Redis Cache (Production)
@@ -31,14 +20,6 @@ services:
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD} --maxmemory 256mb --maxmemory-policy allkeys-lru
     # Remove port exposure in production
     ports: []
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 512M
-        reservations:
-          cpus: '0.1'
-          memory: 64M
 
   # ===================
   # FastAPI Backend (Production)
@@ -51,26 +32,12 @@ services:
       - ENVIRONMENT=production
       - DEBUG=false
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
-    # Remove volume mounts for production
+    # Remove volume mounts for production (use built-in code)
     volumes: []
     # Remove port exposure (only through nginx)
     ports: []
-    # Increase replicas for high availability
-    deploy:
-      replicas: 2
-      resources:
-        limits:
-          cpus: '2'
-          memory: 1G
-        reservations:
-          cpus: '0.25'
-          memory: 256M
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
-        window: 120s
-    # Add logging configuration
+    # Production command with multiple workers
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
     logging:
       driver: "json-file"
       options:
@@ -86,14 +53,6 @@ services:
         - VITE_API_URL=/api/v1
     # Remove port exposure (only through nginx)
     ports: []
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 256M
-        reservations:
-          cpus: '0.1'
-          memory: 64M
     logging:
       driver: "json-file"
       options:
@@ -112,14 +71,6 @@ services:
       - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
       - nginx_logs:/var/log/nginx
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 256M
-        reservations:
-          cpus: '0.1'
-          memory: 64M
     logging:
       driver: "json-file"
       options:
@@ -127,9 +78,5 @@ services:
         max-file: "3"
 
 volumes:
-  pg_data:
-    driver: local
-  redis_data:
-    driver: local
   nginx_logs:
     driver: local
