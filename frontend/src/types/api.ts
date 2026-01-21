@@ -160,3 +160,84 @@ export interface User {
   last_login: string | null
   created_at: string
 }
+
+// Trip Group types
+export interface TemplateBasic {
+  id: number
+  customer: { id: number; code: string; name: string }
+  day_of_week: number
+  day_name: string
+  start_time: string
+  end_time: string
+  volume: number
+  tanker: { id: number; name: string } | null
+}
+
+export interface TripGroup {
+  id: number
+  name: string
+  description: string | null
+  is_active: boolean
+  templates: TemplateBasic[]
+  template_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface TripGroupListItem {
+  id: number
+  name: string
+  description: string | null
+  is_active: boolean
+  template_count: number
+  created_at: string
+}
+
+export interface TripGroupBasic {
+  id: number
+  name: string
+  description: string | null
+}
+
+export interface DriverBasic {
+  id: number
+  name: string
+}
+
+export interface UserBasic {
+  id: number
+  username: string
+}
+
+// Weekly Driver Assignment types
+export interface WeeklyDriverAssignment {
+  id: number
+  trip_group: TripGroupBasic
+  driver: DriverBasic
+  week_start_date: string
+  assigned_at: string
+  assigned_by_user: UserBasic | null
+  notes: string | null
+}
+
+export interface WeeklyAssignmentsResponse {
+  week_start_date: string
+  assignments: WeeklyDriverAssignment[]
+  unassigned_groups: TripGroupBasic[]
+  available_drivers: DriverBasic[]
+}
+
+export interface AutoAssignmentPreview {
+  trip_group: TripGroupBasic
+  driver: DriverBasic | null
+  reason: string | null
+}
+
+export interface AutoAssignResponse {
+  week_start_date: string
+  assignments_created: number
+  groups_unassigned: number
+  assignments: WeeklyDriverAssignment[]
+  unassigned: AutoAssignmentPreview[]
+  message: string
+}
