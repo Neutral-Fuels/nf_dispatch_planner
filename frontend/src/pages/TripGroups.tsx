@@ -83,7 +83,16 @@ export function TripGroups() {
   // Get templates for the selected day
   const dayTemplates = useMemo(() => {
     if (!allTemplates) return []
-    return allTemplates.filter((t) => t.day_of_week === selectedDay && t.is_active)
+    // Debug logging
+    console.log('All templates:', allTemplates)
+    console.log('Selected day:', selectedDay, typeof selectedDay)
+    if (allTemplates.length > 0) {
+      console.log('First template day_of_week:', allTemplates[0].day_of_week, typeof allTemplates[0].day_of_week)
+      console.log('First template is_active:', allTemplates[0].is_active, typeof allTemplates[0].is_active)
+    }
+    const filtered = allTemplates.filter((t) => t.day_of_week === selectedDay && t.is_active)
+    console.log('Filtered templates for day', selectedDay, ':', filtered)
+    return filtered
   }, [allTemplates, selectedDay])
 
   // Available templates (not assigned to any group on this day)
