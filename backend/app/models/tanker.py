@@ -86,10 +86,12 @@ class Tanker(Base):
     registration: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     max_capacity: Mapped[int] = mapped_column(Integer, nullable=False)
     delivery_type: Mapped[DeliveryType] = mapped_column(
-        Enum(DeliveryType), nullable=False
+        Enum(DeliveryType, values_callable=lambda x: [e.value for e in x]),
+        nullable=False
     )
     status: Mapped[TankerStatus] = mapped_column(
-        Enum(TankerStatus), default=TankerStatus.ACTIVE
+        Enum(TankerStatus, values_callable=lambda x: [e.value for e in x]),
+        default=TankerStatus.ACTIVE
     )
     is_3pl: Mapped[bool] = mapped_column(Boolean, default=False)
     default_driver_id: Mapped[Optional[int]] = mapped_column(

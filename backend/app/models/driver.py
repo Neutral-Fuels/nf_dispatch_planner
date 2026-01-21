@@ -47,7 +47,9 @@ class Driver(Base):
         String(50), unique=True, nullable=True
     )
     driver_type: Mapped[DriverType] = mapped_column(
-        Enum(DriverType), nullable=False, default=DriverType.INTERNAL
+        Enum(DriverType, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        default=DriverType.INTERNAL
     )
     contact_phone: Mapped[Optional[str]] = mapped_column(
         String(20), nullable=True
@@ -88,7 +90,9 @@ class DriverSchedule(Base):
     )
     schedule_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     status: Mapped[DriverStatus] = mapped_column(
-        Enum(DriverStatus), nullable=False, default=DriverStatus.WORKING
+        Enum(DriverStatus, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        default=DriverStatus.WORKING
     )
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

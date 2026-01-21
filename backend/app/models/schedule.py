@@ -172,7 +172,9 @@ class Trip(Base):
     is_mobile_op: Mapped[bool] = mapped_column(Boolean, default=False)
     needs_return: Mapped[bool] = mapped_column(Boolean, default=False)
     status: Mapped[TripStatus] = mapped_column(
-        Enum(TripStatus), default=TripStatus.SCHEDULED, index=True
+        Enum(TripStatus, values_callable=lambda x: [e.value for e in x]),
+        default=TripStatus.SCHEDULED,
+        index=True
     )
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

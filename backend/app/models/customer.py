@@ -39,7 +39,8 @@ class Customer(Base):
         String(20), unique=True, nullable=False, index=True
     )
     customer_type: Mapped[CustomerType] = mapped_column(
-        Enum(CustomerType), nullable=False
+        Enum(CustomerType, values_callable=lambda x: [e.value for e in x]),
+        nullable=False
     )
     fuel_blend_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("fuel_blends.id"), nullable=True
